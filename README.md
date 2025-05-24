@@ -11,7 +11,7 @@ A minimal, high-performance CLI suite written in Rust for organizing, scanning, 
 ## Installation
 
 ```bash
-cargo install --path .
+cargo install rkit
 ```
 
 ## Configuration
@@ -20,20 +20,36 @@ The configuration file is located at:
 - Unix-like systems: `~/.config/rkit/config.yaml`
 - Windows: `%APPDATA%\rkit\config.yaml`
 
-It will be created automatically on first run with default values.
+It will be created automatically on first run with platform-specific default values.
 
-Example configuration:
+### Default Configuration
+
+The default configuration includes:
 
 ```yaml
-project_root: "~/Projects"  # or "%USERPROFILE%\projects" on Windows
-
+# Linux/macOS
+project_root: ~/projects
 rview:
-  - command: "git -C {REPO} rev-parse --abbrev-ref HEAD"
-    label: "Branch"
-  - command: "git -C {REPO} status --porcelain"
-    label: "Uncommitted Changes"
-  - command: "cat {REPO}/README.md"
-    label: "README"
+  - command: basename {REPO}
+    label: Repo
+  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+    label: Active Branch
+  - command: git -C {REPO} status
+    label: Status
+  - command: cat {REPO}/README.md
+    label: README
+
+# Windows
+project_root: %USERPROFILE%\projects
+rview:
+  - command: powershell -Command "Split-Path -Leaf {REPO}"
+    label: Repo
+  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+    label: Active Branch
+  - command: git -C {REPO} status
+    label: Status
+  - command: type {REPO}\README.md
+    label: README
 ```
 
 ## Usage
@@ -44,7 +60,7 @@ rview:
 rkit clone https://github.com/username/repo.git
 ```
 
-This will clone the repository to `~/Projects/github.com/username/repo`.
+This will clone the repository to `~/projects/github.com/username/repo` (or `%USERPROFILE%\projects\github.com\username\repo` on Windows).
 
 ### List repositories
 
@@ -60,8 +76,10 @@ Lists all Git repositories found under the configured project root. Use the `--f
 rkit view path/to/repo
 ```
 
-Displays repository information based on configured commands or falls back to showing README.md or directory listing. The command will:
-- Show configured Git information (branch, status, etc.)
+Displays repository information based on configured commands. The command will:
+- Show the repository name
+- Display the active branch
+- Show the current git status
 - Display the repository's README.md if available
 - Fall back to directory listing if no README is found
 
