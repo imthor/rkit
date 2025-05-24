@@ -23,4 +23,7 @@ Cargo.lock
 .env.local
 
 # Debug files
-*.log 
+*.log
+
+# Don't ignore etc directory
+!etc/ 

@@ -16,6 +16,23 @@ pub struct Config {
 }
 
 impl Config {
+    fn get_default_config() -> RkitResult<Config> {
+        let default_config_path = if cfg!(windows) {
+            "etc/default_config_windows.yaml"
+        } else {
+            "etc/default_config_linux.yaml"
+        };
+
+        let config_str = fs::read_to_string(default_config_path)
+            .map_err(|e| RkitError::FileReadError {
+                path: PathBuf::from(default_config_path),
+                source: e,
+            })?;
+        
+        let config: Config = serde_yaml::from_str(&config_str)?;
+        Ok(config)
+    }
+
     pub fn load_or_create() -> RkitResult<Self> {
         // Use platform-specific config directory
         let config_dir = if cfg!(windows) {
@@ -37,30 +54,7 @@ impl Config {
         let config_path = config_dir.join("config.yaml");
 
         if !config_path.exists() {
-            let default_config = Config {
-                project_root: if cfg!(windows) {
-                    // On Windows, use %USERPROFILE%\Projects
-                    "%USERPROFILE%\\projects".to_string()
-                } else {
-                    // On Unix-like systems, use ~/Projects
-                    "~/projects".to_string()
-                },
-                rview: Some(vec![
-                    RViewCmd {
-                        command: "git -C {REPO} rev-parse --abbrev-ref HEAD".to_string(),
-                        label: "Branch".to_string(),
-                    },
-                    RViewCmd {
-                        command: "git -C {REPO} status --porcelain".to_string(),
-                        label: "Uncommitted Changes".to_string(),
-                    },
-                    RViewCmd {
-                        command: "cat {REPO}/README.md".to_string(),
-                        label: "README".to_string(),
-                    },
-                ]),
-            };
-
+            let default_config = Self::get_default_config()?;
             let yaml = serde_yaml::to_string(&default_config)?;
             fs::write(&config_path, yaml)
                 .map_err(|e| RkitError::FileWriteError {

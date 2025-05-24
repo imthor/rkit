@@ -1,6 +1,6 @@
 [package]
 name = "rkit"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rust CLI Toolkit for Git Repo Management"
 authors = ["Justin Thomas <admin@imthor.in>"]
@@ -9,6 +9,10 @@ repository = "https://github.com/imthor/rkit"
 readme = "README.md"
 keywords = ["git", "cli", "repository", "management"]
 categories = ["command-line-utilities", "development-tools"]
+
+[package.metadata]
+default_config_linux = "etc/default_config_linux.yaml"
+default_config_windows = "etc/default_config_windows.yaml"
 
 [dependencies]
 clap = { version = "4.3.21", features = ["derive"] }

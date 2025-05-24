@@ -1,0 +1,10 @@
+project_root: %USERPROFILE%\projects
+rview:
+  - command: powershell -Command "Split-Path -Leaf {REPO}"
+    label: Repo
+  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+    label: Active Branch
+  - command: git -C {REPO} status
+    label: Status
+  - command: type {REPO}\README.md
+    label: README 
