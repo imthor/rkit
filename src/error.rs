@@ -54,6 +54,9 @@ pub enum RkitError {
 
     #[error("Permission denied: {0}")]
     PermissionError(String),
+
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 // Type alias for Result type using our custom error
