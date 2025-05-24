@@ -26,6 +26,14 @@ fi
 # Detect the shell
 SHELL_NAME=$(basename "$SHELL")
 
+# Function to prompt user for input
+prompt_user() {
+    local prompt="$1"
+    echo -n "$prompt"
+    read -r response
+    echo "$response"
+}
+
 # Function to add to shell config
 # Parameters:
 #   None
@@ -58,9 +66,8 @@ add_to_shell_config() {
         echo "    rkit clone \"\$@\""
         echo "}"
         echo
-        read -p "Do you want to install the clone function? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        response=$(prompt_user "Do you want to install the clone function? (y/N) ")
+        if [[ $response =~ ^[Yy]$ ]]; then
             functions_to_add+="
 clone() {
     rkit clone \"\$@\"
@@ -83,9 +90,8 @@ clone() {
         echo "    fi"
         echo "}"
         echo
-        read -p "Do you want to install the cdc function? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        response=$(prompt_user "Do you want to install the cdc function? (y/N) ")
+        if [[ $response =~ ^[Yy]$ ]]; then
             functions_to_add+="
 cdc() {
     local query=\"\$1\"
@@ -113,9 +119,8 @@ cdc() {
         echo "    fi"
         echo "}"
         echo
-        read -p "Do you want to install the edit function? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        response=$(prompt_user "Do you want to install the edit function? (y/N) ")
+        if [[ $response =~ ^[Yy]$ ]]; then
             functions_to_add+="
 edit() {
     local query=\"\$1\"
@@ -163,9 +168,8 @@ edit() {
             echo
             echo "compdef _rkit_completion edit cdc"
             echo
-            read -p "Do you want to install the zsh completion configuration? (y/N) " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            response=$(prompt_user "Do you want to install the zsh completion configuration? (y/N) ")
+            if [[ $response =~ ^[Yy]$ ]]; then
                 functions_to_add+="
 # rkit completion for zsh
 autoload -Uz compinit
@@ -219,9 +223,8 @@ compdef _rkit_completion edit cdc"
             echo
             echo "complete -F _rkit_completion edit cdc"
             echo
-            read -p "Do you want to install the bash completion configuration? (y/N) " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            response=$(prompt_user "Do you want to install the bash completion configuration? (y/N) ")
+            if [[ $response =~ ^[Yy]$ ]]; then
                 functions_to_add+="
 # rkit completion for bash
 _rkit_completion() {
@@ -249,13 +252,11 @@ complete -F _rkit_completion edit cdc"
         return
     fi
 
-    # Add the selected functions to the config file
-    echo "# rkit functions$functions_to_add" >> "$config_file"
-
-    echo "Added selected functions to $config_file"
-    echo "Please restart your shell or run 'source $config_file' to use the new functions"
+    # Add the functions to the config file
+    echo "$functions_to_add" >> "$config_file"
+    echo "Functions have been added to $config_file"
+    echo "Please restart your shell or run 'source $config_file' to apply the changes."
 }
 
-# Main installation
-echo "Installing rkit functions for $SHELL_NAME..."
+# Main execution
 add_to_shell_config 
