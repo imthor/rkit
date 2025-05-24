@@ -20,18 +20,18 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Smart Git clone wrapper
-    Rclone {
+    Clone {
         /// Git repository URL to clone
         url: String,
     },
     /// List Git repositories in workspace
-    Rls {
+    Ls {
         /// Show full paths instead of relative paths
         #[arg(short, long)]
         full: bool,
     },
     /// View repository information
-    Rview {
+    View {
         /// Path to repository
         path: PathBuf,
     },
@@ -54,19 +54,19 @@ fn main() -> RkitResult<()> {
     let project_root = config.expand_project_root()?;
 
     match cli.command {
-        Commands::Rclone { url } => {
-            commands::rclone::clone(&url, &project_root)?;
+        Commands::Clone { url } => {
+            commands::clone::clone(&url, &project_root)?;
         }
-        Commands::Rls { full } => {
-            commands::rls::list_repos(&project_root, full)?;
+        Commands::Ls { full } => {
+            commands::ls::list_repos(&project_root, full)?;
         }
-        Commands::Rview { path } => {
+        Commands::View { path } => {
             let repo_path = if path.is_absolute() {
                 path
             } else {
                 project_root.join(path)
             };
-            commands::rview::view_repo(&repo_path, config.rview.as_deref())?;
+            commands::view::view_repo(&repo_path, config.rview.as_deref())?;
         }
     }
 

@@ -4,9 +4,9 @@ A minimal, high-performance CLI suite written in Rust for organizing, scanning, 
 
 ## Features
 
-- `rclone`: Smart Git clone wrapper that organizes repositories by domain and organization
-- `rls`: List all Git repositories in your workspace
-- `rview`: View repository information and metadata
+- `clone`: Smart Git clone wrapper that organizes repositories by domain and organization
+- `ls`: List all Git repositories in your workspace
+- `view`: View repository information and metadata
 
 ## Installation
 
@@ -41,7 +41,7 @@ rview:
 ### Clone a repository
 
 ```bash
-rkit rclone https://github.com/username/repo.git
+rkit clone https://github.com/username/repo.git
 ```
 
 This will clone the repository to `~/Projects/github.com/username/repo`.
@@ -49,7 +49,7 @@ This will clone the repository to `~/Projects/github.com/username/repo`.
 ### List repositories
 
 ```bash
-rkit rls [--full]
+rkit ls [--full]
 ```
 
 Lists all Git repositories found under the configured project root. Use the `--full` flag to show absolute paths instead of relative paths.
@@ -57,7 +57,7 @@ Lists all Git repositories found under the configured project root. Use the `--f
 ### View repository information
 
 ```bash
-rkit rview path/to/repo
+rkit view path/to/repo
 ```
 
 Displays repository information based on configured commands or falls back to showing README.md or directory listing. The command will:
@@ -75,10 +75,10 @@ cargo build
 cargo test
 
 # Run with debug output
-RUST_LOG=debug cargo run -- rls
+RUST_LOG=debug cargo run -- ls
 
 # Run with trace output
-RUST_LOG=trace cargo run -- rls
+RUST_LOG=trace cargo run -- ls
 ```
 
 The project uses structured logging with different verbosity levels:

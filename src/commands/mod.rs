@@ -1,3 +1,3 @@
-pub mod rclone;
-pub mod rls;
-pub mod rview; 
+pub mod clone;
+pub mod ls;
+pub mod view; 
