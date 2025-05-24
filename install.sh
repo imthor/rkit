@@ -87,16 +87,29 @@ add_to_shell_config() {
     else
         echo "The following function will be added to $CONFIG_FILE:"
         echo
-        echo "clone() {"
-        echo "    rkit clone \"\$@\""
-        echo "}"
+        if [ "$SHELL_NAME" = "bash" ]; then
+            echo "function clone {"
+            echo "    rkit clone \"\$@\""
+            echo "}"
+        else
+            echo "clone() {"
+            echo "    rkit clone \"\$@\""
+            echo "}"
+        fi
         echo
         response=$(prompt_user "Do you want to install the clone function? (y/N) ")
         if [[ $response =~ ^[Yy]$ ]]; then
-            functions_to_add+="
+            if [ "$SHELL_NAME" = "bash" ]; then
+                functions_to_add+="
+function clone {
+    rkit clone \"\$@\"
+}"
+            else
+                functions_to_add+="
 clone() {
     rkit clone \"\$@\"
 }"
+            fi
         fi
     fi
 
@@ -106,18 +119,40 @@ clone() {
     else
         echo "The following function will be added to $CONFIG_FILE:"
         echo
-        echo "cdc() {"
-        echo "    local query=\"\$1\""
-        echo "    if [ -n \"\$query\" ]; then"
-        echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
-        echo "    else"
-        echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
-        echo "    fi"
-        echo "}"
+        if [ "$SHELL_NAME" = "bash" ]; then
+            echo "function cdc {"
+            echo "    local query=\"\$1\""
+            echo "    if [ -n \"\$query\" ]; then"
+            echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
+            echo "    else"
+            echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
+            echo "    fi"
+            echo "}"
+        else
+            echo "cdc() {"
+            echo "    local query=\"\$1\""
+            echo "    if [ -n \"\$query\" ]; then"
+            echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
+            echo "    else"
+            echo "        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
+            echo "    fi"
+            echo "}"
+        fi
         echo
         response=$(prompt_user "Do you want to install the cdc function? (y/N) ")
         if [[ $response =~ ^[Yy]$ ]]; then
-            functions_to_add+="
+            if [ "$SHELL_NAME" = "bash" ]; then
+                functions_to_add+="
+function cdc {
+    local query=\"\$1\"
+    if [ -n \"\$query\" ]; then
+        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\"
+    else
+        cd \"\$(rkit ls -f | fzf --preview 'rkit view {}')\"
+    fi
+}"
+            else
+                functions_to_add+="
 cdc() {
     local query=\"\$1\"
     if [ -n \"\$query\" ]; then
@@ -126,6 +161,7 @@ cdc() {
         cd \"\$(rkit ls -f | fzf --preview 'rkit view {}')\"
     fi
 }"
+            fi
         fi
     fi
 
@@ -135,18 +171,40 @@ cdc() {
     else
         echo "The following function will be added to $CONFIG_FILE:"
         echo
-        echo "edit() {"
-        echo "    local query=\"\$1\""
-        echo "    if [ -n \"\$query\" ]; then"
-        echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
-        echo "    else"
-        echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
-        echo "    fi"
-        echo "}"
+        if [ "$SHELL_NAME" = "bash" ]; then
+            echo "function edit {"
+            echo "    local query=\"\$1\""
+            echo "    if [ -n \"\$query\" ]; then"
+            echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
+            echo "    else"
+            echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
+            echo "    fi"
+            echo "}"
+        else
+            echo "edit() {"
+            echo "    local query=\"\$1\""
+            echo "    if [ -n \"\$query\" ]; then"
+            echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\""
+            echo "    else"
+            echo "        code \"\$(rkit ls -f | fzf --preview 'rkit view {}')\""
+            echo "    fi"
+            echo "}"
+        fi
         echo
         response=$(prompt_user "Do you want to install the edit function? (y/N) ")
         if [[ $response =~ ^[Yy]$ ]]; then
-            functions_to_add+="
+            if [ "$SHELL_NAME" = "bash" ]; then
+                functions_to_add+="
+function edit {
+    local query=\"\$1\"
+    if [ -n \"\$query\" ]; then
+        code \"\$(rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")\"
+    else
+        code \"\$(rkit ls -f | fzf --preview 'rkit view {}')\"
+    fi
+}"
+            else
+                functions_to_add+="
 edit() {
     local query=\"\$1\"
     if [ -n \"\$query\" ]; then
@@ -155,6 +213,7 @@ edit() {
         code \"\$(rkit ls -f | fzf --preview 'rkit view {}')\"
     fi
 }"
+            fi
         fi
     fi
 
