@@ -1,4 +1,4 @@
-# rkit
+# rkit <a href="https://crates.io/crates/rkit"><img src="https://img.shields.io/crates/v/rkit" alt="Crates.io"></a>
 
 A minimal, high-performance CLI suite written in Rust for organizing, scanning, and inspecting Git repositories under a user-defined workspace.
 
