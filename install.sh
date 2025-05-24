@@ -7,6 +7,14 @@ set -euo pipefail
 # This script adds useful functions to your shell configuration file
 # for working with rkit repositories.
 
+# Check if running in interactive mode
+if [ -t 0 ]; then
+    INTERACTIVE=true
+else
+    INTERACTIVE=false
+    echo "Running in non-interactive mode. All functions will be installed by default."
+fi
+
 # Check if rkit is installed
 if ! command -v rkit &> /dev/null; then
     echo "Error: rkit is not installed"
@@ -29,9 +37,13 @@ SHELL_NAME=$(basename "$SHELL")
 # Function to prompt user for input
 prompt_user() {
     local prompt="$1"
-    echo -n "$prompt"
-    read -r response
-    echo "$response"
+    if [ "$INTERACTIVE" = true ]; then
+        echo -n "$prompt"
+        read -r response
+        echo "$response"
+    else
+        echo "y"  # Default to yes in non-interactive mode
+    fi
 }
 
 # Function to add to shell config
