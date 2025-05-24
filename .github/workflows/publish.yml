@@ -6,8 +6,11 @@ on:
       - main
     paths:
       - 'Cargo.toml'
-      - 'src/**'
-      - '.github/workflows/publish.yml'
+      - 'Cargo.lock'
+      - 'src/**/*.rs'
+      - 'tests/**/*.rs'
+      - 'examples/**/*.rs'
+      - 'benches/**/*.rs'
 
 env:
   CARGO_TERM_COLOR: always
