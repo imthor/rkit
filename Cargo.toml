@@ -1,0 +1,20 @@
+[package]
+name = "rkit"
+version = "0.1.0"
+edition = "2021"
+description = "Rust CLI Toolkit for Git Repo Management"
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+clap = { version = "4.3.21", features = ["derive"] }
+serde = { version = "1.0.188", features = ["derive"] }
+serde_yaml = "0.9.25"
+dirs = "5.0.1"
+walkdir = "2.4.0"
+shell-escape = "0.1.5"
+anyhow = "1.0.75"
+url = "2.4.1"
+shellexpand = "3.1.0"
+thiserror = "1.0.50"
+log = "0.4"
+env_logger = "0.10" 
