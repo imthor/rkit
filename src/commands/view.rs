@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use crate::config::RViewCmd;
 use crate::error::{RkitError, RkitResult};
 
@@ -33,23 +33,31 @@ pub fn view_repo(repo_path: &PathBuf, commands: Option<&[RViewCmd]>) -> RkitResu
                 continue;
             }
             
+            println!("=== {} ===", cmd.label);
+            
             log::debug!("Running command for {}: {}", cmd.label, command_str);
-            let output = Command::new(parts[0])
+            let mut child = Command::new(parts[0])
                 .args(&parts[1..])
-                .output()
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
                 .map_err(|e| RkitError::ShellCommandError {
                     command: cmd.command.clone(),
                     source: e,
                 })?;
+
+            // Wait for the command to complete
+            let status = child.wait()
+                .map_err(|e| RkitError::ShellCommandError {
+                    command: cmd.command.clone(),
+                    source: e,
+                })?;
+
+            if !status.success() {
+                log::warn!("Command '{}' exited with status: {}", cmd.command, status);
+            }
             
-            println!("=== {} ===", cmd.label);
-            if !output.stdout.is_empty() {
-                println!("{}", String::from_utf8_lossy(&output.stdout));
-            }
-            if !output.stderr.is_empty() {
-                eprintln!("{}", String::from_utf8_lossy(&output.stderr));
-            }
-            println!();
+            println!(); // Add a blank line between commands
         }
     } else {
         // Fallback behavior
@@ -66,15 +74,22 @@ pub fn view_repo(repo_path: &PathBuf, commands: Option<&[RViewCmd]>) -> RkitResu
         } else {
             log::info!("Listing directory contents for {}", repo_path.display());
             println!("=== Directory Listing ===");
-            let output = Command::new("ls")
+            let mut child = Command::new("ls")
                 .arg("-la")
                 .arg(repo_path)
-                .output()
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
                 .map_err(|e| RkitError::ShellCommandError {
                     command: format!("ls -la {}", repo_path.display()),
                     source: e,
                 })?;
-            println!("{}", String::from_utf8_lossy(&output.stdout));
+
+            child.wait()
+                .map_err(|e| RkitError::ShellCommandError {
+                    command: format!("ls -la {}", repo_path.display()),
+                    source: e,
+                })?;
         }
     }
     Ok(())

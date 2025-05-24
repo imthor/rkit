@@ -2,9 +2,9 @@ project_root: ~/projects
 rview:
   - command: basename {REPO}
     label: Repo
-  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+  - command: git -C {REPO} -c color.ui=always rev-parse --abbrev-ref HEAD
     label: Active Branch
-  - command: git -C {REPO} status
+  - command: git -C {REPO} -c color.ui=always status
     label: Status
   - command: cat {REPO}/README.md
     label: README 
