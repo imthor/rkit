@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-mod config;
 mod commands;
+mod config;
 mod error;
 
 use error::RkitResult;
@@ -71,4 +71,4 @@ fn main() -> RkitResult<()> {
     }
 
     Ok(())
-} 
+}

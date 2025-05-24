@@ -57,4 +57,4 @@ pub enum RkitError {
 }
 
 // Type alias for Result type using our custom error
-pub type RkitResult<T> = Result<T, RkitError>; 
+pub type RkitResult<T> = Result<T, RkitError>;

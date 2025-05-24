@@ -1,9 +1,12 @@
+use crate::error::RkitResult;
 use std::path::PathBuf;
 use walkdir::WalkDir;
-use crate::error::RkitResult;
 
 pub fn list_repos(project_root: &PathBuf, full: bool) -> RkitResult<()> {
-    log::debug!("Listing repositories in workspace: {}", project_root.display());
+    log::debug!(
+        "Listing repositories in workspace: {}",
+        project_root.display()
+    );
     for entry in WalkDir::new(project_root)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -18,4 +21,4 @@ pub fn list_repos(project_root: &PathBuf, full: bool) -> RkitResult<()> {
         }
     }
     Ok(())
-} 
+}
