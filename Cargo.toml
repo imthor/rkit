@@ -1,6 +1,6 @@
 [package]
 name = "rkit"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Rust CLI Toolkit for Git Repo Management"
 authors = ["Justin Thomas <admin@imthor.in>"]
