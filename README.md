@@ -2,17 +2,119 @@
 
 A minimal, high-performance CLI suite written in Rust for organizing, scanning, and inspecting Git repositories under a user-defined workspace.
 
+## Installation
+
+```bash
+cargo install rkit
+```
+
 ## Features
 
 - `clone`: Smart Git clone wrapper that organizes repositories by domain and organization
 - `ls`: List all Git repositories in your workspace
 - `view`: View repository information and metadata
 
-## Installation
+## Shell Extensions
+
+rkit provides optional shell extensions that add useful functions and completions to your shell configuration.
+
+### Prerequisites
+
+- [rkit](https://github.com/imthor/rkit) - The main tool
+- [fzf](https://github.com/junegunn/fzf) - Fuzzy finder for the terminal
+
+### For Bash/Zsh Users
+
+Install the shell extension:
 
 ```bash
-cargo install rkit
+curl -sSL https://raw.githubusercontent.com/imthor/rkit/main/install.sh | bash
 ```
+
+The script will:
+- Check for required dependencies
+- Ask for confirmation before installing each function
+- Create a backup of your shell config file
+- Add the selected functions and completions
+
+After installation, either:
+- Restart your shell, or
+- Run `source ~/.zshrc` (for Zsh) or `source ~/.bashrc` (for Bash)
+
+### For Fish Users
+
+Install the shell extension:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/imthor/rkit/main/install.fish | fish
+```
+
+The script will:
+- Check for required dependencies
+- Ask for confirmation before installing each function
+- Create a backup of your Fish config file
+- Add the selected functions and completions
+
+After installation, either:
+- Restart your shell, or
+- Run `source ~/.config/fish/config.fish`
+
+### Available Extension Functions
+
+After installing the shell extension, the following functions will be available:
+
+#### `clone`
+
+Clone a repository using rkit.
+
+```bash
+clone <repository>
+```
+
+#### `cdc`
+
+Change directory to a repository using fuzzy search.
+
+```bash
+cdc [query]  # Optional query to pre-filter the list
+```
+
+#### `edit`
+
+Open a repository in your default editor (VS Code) using fuzzy search.
+
+```bash
+edit [query]  # Optional query to pre-filter the list
+```
+
+### Extension Features
+
+- **Fuzzy Search**: All functions use fzf for intuitive repository selection
+- **Preview**: See repository details while searching
+- **Shell Completions**: Tab completion for repository names
+- **Query Support**: Pre-filter the repository list with a query
+- **Safe Installation**: Creates backup of your config file before making changes
+
+### Uninstalling Extensions
+
+To remove the shell extension:
+
+1. Open your shell config file:
+   - Zsh: `~/.zshrc`
+   - Bash: `~/.bashrc`
+   - Fish: `~/.config/fish/config.fish`
+
+2. Remove the section that starts with `# rkit functions`
+
+3. Source your config file or restart your shell
+
+### Extension Backup
+
+The installation scripts create a backup of your config file before making any changes. The backup will be saved as:
+- Zsh/Bash: `~/.zshrc.bak` or `~/.bashrc.bak`
+- Fish: `~/.config/fish/config.fish.bak`
+
+You can restore your original configuration by copying the backup file back if needed.
 
 ## Configuration
 
@@ -57,10 +159,10 @@ rview:
 ### Clone a repository
 
 ```bash
-rkit clone https://github.com/username/repo.git
+rkit clone https://github.com/imthor/rkit.git
 ```
 
-This will clone the repository to `~/projects/github.com/username/repo` (or `%USERPROFILE%\projects\github.com\username\repo` on Windows).
+This will clone the repository to `~/projects/github.com/imthor/rkit` (or `%USERPROFILE%\projects\github.com\username\repo` on Windows).
 
 ### List repositories
 
