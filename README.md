@@ -1,5 +1,5 @@
-<p align="center" style="margin: 0 0">
-  <img height="250px" src="/assets/images/rkit.png">
+<p align="center">
+  <img src="/assets/images/rkit.png">
 </p>
 
 # rkit <a href="https://crates.io/crates/rkit"><img src="https://img.shields.io/crates/v/rkit" alt="Crates.io"></a>
