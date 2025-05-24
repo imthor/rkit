@@ -3,7 +3,12 @@ name = "rkit"
 version = "0.1.0"
 edition = "2021"
 description = "Rust CLI Toolkit for Git Repo Management"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Justin Thomas <admin@imthor.in>"]
+license = "MIT"
+repository = "https://github.com/imthor/rkit"
+readme = "README.md"
+keywords = ["git", "cli", "repository", "management"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 clap = { version = "4.3.21", features = ["derive"] }
