@@ -59,9 +59,9 @@ end"
 create_function_file "cdc" "function cdc
     set -l query \$argv[1]
     if test -n \"\$query\"
-        cd (rkit ls | fzf --preview 'rkit view {}' --query \"\$query\")
+        cd (rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")
     else
-        cd (rkit ls | fzf --preview 'rkit view {}')
+        cd (rkit ls -f | fzf --preview 'rkit view {}')
     end
 end"
 
@@ -69,9 +69,9 @@ end"
 create_function_file "edit" "function edit
     set -l query \$argv[1]
     if test -n \"\$query\"
-        code (rkit ls | fzf --preview 'rkit view {}' --query \"\$query\")
+        code (rkit ls -f | fzf --preview 'rkit view {}' --query \"\$query\")
     else
-        code (rkit ls | fzf --preview 'rkit view {}')
+        code (rkit ls -f | fzf --preview 'rkit view {}')
     end
 end"
 
