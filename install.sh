@@ -82,7 +82,7 @@ add_to_shell_config() {
     local functions_to_add=""
 
     # Check and ask for clone function
-    if grep -q "^clone()" "$CONFIG_FILE"; then
+    if grep -q "^clone()" "$CONFIG_FILE" || grep -q "^function clone" "$CONFIG_FILE"; then
         echo "clone function is already installed in $CONFIG_FILE"
     else
         echo "The following function will be added to $CONFIG_FILE:"
@@ -114,7 +114,7 @@ clone() {
     fi
 
     # Check and ask for cdc function
-    if grep -q "^cdc()" "$CONFIG_FILE"; then
+    if grep -q "^cdc()" "$CONFIG_FILE" || grep -q "^function cdc" "$CONFIG_FILE"; then
         echo "cdc function is already installed in $CONFIG_FILE"
     else
         echo "The following function will be added to $CONFIG_FILE:"
@@ -166,7 +166,7 @@ cdc() {
     fi
 
     # Check and ask for edit function
-    if grep -q "^edit()" "$CONFIG_FILE"; then
+    if grep -q "^edit()" "$CONFIG_FILE" || grep -q "^function edit" "$CONFIG_FILE"; then
         echo "edit function is already installed in $CONFIG_FILE"
     else
         echo "The following function will be added to $CONFIG_FILE:"
@@ -291,7 +291,7 @@ compdef _rkit_completion edit cdc"
             echo "The following bash completion configuration will be added to $CONFIG_FILE:"
             echo
             echo "# rkit completion for bash"
-            echo "_rkit_completion() {"
+            echo "function _rkit_completion {"
             echo "    local cur prev opts"
             echo "    COMPREPLY=()"
             echo "    cur=\"\${COMP_WORDS[COMP_CWORD]}\""
@@ -311,7 +311,7 @@ compdef _rkit_completion edit cdc"
             if [[ $response =~ ^[Yy]$ ]]; then
                 functions_to_add+="
 # rkit completion for bash
-_rkit_completion() {
+function _rkit_completion {
     local cur prev opts
     COMPREPLY=()
     cur=\"\${COMP_WORDS[COMP_CWORD]}\"
