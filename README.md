@@ -31,6 +31,10 @@ rkit provides optional shell extensions that add useful functions and completion
 Install the shell extension:
 
 ```bash
+# For zsh users (recommended)
+zsh < <(curl -sSL https://raw.githubusercontent.com/imthor/rkit/main/install.sh)
+
+# For bash users
 curl -sSL https://raw.githubusercontent.com/imthor/rkit/main/install.sh | bash
 ```
 
