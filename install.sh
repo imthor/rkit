@@ -7,6 +7,29 @@ set -euo pipefail
 # This script adds useful functions to your shell configuration file
 # for working with rkit repositories.
 
+# Detect the shell and its environment
+if [ -n "${ZSH_VERSION:-}" ]; then
+    SHELL_NAME="zsh"
+    # Get the parent shell's config file
+    if [ -f "$HOME/.zshrc" ]; then
+        CONFIG_FILE="$HOME/.zshrc"
+    else
+        echo "Error: Could not find .zshrc in your home directory"
+        exit 1
+    fi
+elif [ -n "${BASH_VERSION:-}" ]; then
+    SHELL_NAME="bash"
+    if [ -f "$HOME/.bashrc" ]; then
+        CONFIG_FILE="$HOME/.bashrc"
+    else
+        echo "Error: Could not find .bashrc in your home directory"
+        exit 1
+    fi
+else
+    echo "Error: Unsupported shell. This script only supports bash and zsh."
+    exit 1
+fi
+
 # Check if running in interactive mode
 if [ -t 0 ]; then
     INTERACTIVE=true
@@ -31,9 +54,6 @@ if ! command -v fzf &> /dev/null; then
     exit 1
 fi
 
-# Detect the shell
-SHELL_NAME=$(basename "$SHELL")
-
 # Function to prompt user for input
 prompt_user() {
     local prompt="$1"
@@ -52,27 +72,20 @@ prompt_user() {
 # Returns:
 #   None
 add_to_shell_config() {
-    local config_file
-    if [ "$SHELL_NAME" = "zsh" ]; then
-        config_file="$HOME/.zshrc"
-    else
-        config_file="$HOME/.bashrc"
-    fi
-
     # Create backup of config file
-    if [ -f "$config_file" ]; then
-        cp "$config_file" "${config_file}.bak"
-        echo "Created backup of $config_file at ${config_file}.bak"
+    if [ -f "$CONFIG_FILE" ]; then
+        cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+        echo "Created backup of $CONFIG_FILE at ${CONFIG_FILE}.bak"
     fi
 
     # Initialize the functions string
     local functions_to_add=""
 
     # Check and ask for clone function
-    if grep -q "^clone()" "$config_file"; then
-        echo "clone function is already installed in $config_file"
+    if grep -q "^clone()" "$CONFIG_FILE"; then
+        echo "clone function is already installed in $CONFIG_FILE"
     else
-        echo "The following function will be added to $config_file:"
+        echo "The following function will be added to $CONFIG_FILE:"
         echo
         echo "clone() {"
         echo "    rkit clone \"\$@\""
@@ -88,10 +101,10 @@ clone() {
     fi
 
     # Check and ask for cdc function
-    if grep -q "^cdc()" "$config_file"; then
-        echo "cdc function is already installed in $config_file"
+    if grep -q "^cdc()" "$CONFIG_FILE"; then
+        echo "cdc function is already installed in $CONFIG_FILE"
     else
-        echo "The following function will be added to $config_file:"
+        echo "The following function will be added to $CONFIG_FILE:"
         echo
         echo "cdc() {"
         echo "    local query=\"\$1\""
@@ -117,10 +130,10 @@ cdc() {
     fi
 
     # Check and ask for edit function
-    if grep -q "^edit()" "$config_file"; then
-        echo "edit function is already installed in $config_file"
+    if grep -q "^edit()" "$CONFIG_FILE"; then
+        echo "edit function is already installed in $CONFIG_FILE"
     else
-        echo "The following function will be added to $config_file:"
+        echo "The following function will be added to $CONFIG_FILE:"
         echo
         echo "edit() {"
         echo "    local query=\"\$1\""
@@ -147,8 +160,8 @@ edit() {
 
     # Add autocomplete configuration
     if [ "$SHELL_NAME" = "zsh" ]; then
-        if ! grep -q "_rkit_completion" "$config_file"; then
-            echo "The following zsh completion configuration will be added to $config_file:"
+        if ! grep -q "_rkit_completion" "$CONFIG_FILE"; then
+            echo "The following zsh completion configuration will be added to $CONFIG_FILE:"
             echo
             echo "# rkit completion for zsh"
             echo "autoload -Uz compinit"
@@ -215,8 +228,8 @@ compdef _rkit_completion edit cdc"
             fi
         fi
     else
-        if ! grep -q "_rkit_completion" "$config_file"; then
-            echo "The following bash completion configuration will be added to $config_file:"
+        if ! grep -q "_rkit_completion" "$CONFIG_FILE"; then
+            echo "The following bash completion configuration will be added to $CONFIG_FILE:"
             echo
             echo "# rkit completion for bash"
             echo "_rkit_completion() {"
@@ -265,9 +278,9 @@ complete -F _rkit_completion edit cdc"
     fi
 
     # Add the functions to the config file
-    echo "$functions_to_add" >> "$config_file"
-    echo "Functions have been added to $config_file"
-    echo "Please restart your shell or run 'source $config_file' to apply the changes."
+    echo "$functions_to_add" >> "$CONFIG_FILE"
+    echo "Functions have been added to $CONFIG_FILE"
+    echo "Please restart your shell or run 'source $CONFIG_FILE' to apply the changes."
 }
 
 # Main execution
