@@ -1,6 +1,6 @@
 [package]
 name = "rkit"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "Rust CLI Toolkit for Git Repo Management"
 authors = ["Justin Thomas <admin@imthor.in>"]
@@ -26,4 +26,5 @@ url = "2.4.1"
 shellexpand = "3.1.0"
 thiserror = "1.0.50"
 log = "0.4"
-env_logger = "0.10" 
+env_logger = "0.10"
+rayon = "1.8.0" 
