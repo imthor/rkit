@@ -87,6 +87,7 @@ fn main() -> RkitResult<()> {
                 same_file_system,
                 threads: threads.unwrap_or_else(num_cpus::get),
                 max_repos,
+                stop_at_git: true,
             };
             commands::ls::list_repos(&project_root, full, Some(config))?;
         }

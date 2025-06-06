@@ -1,5 +1,4 @@
 use ignore::WalkBuilder;
-use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use rayon::prelude::*;
 use std::collections::HashSet;
@@ -31,6 +30,7 @@ pub struct WalkerConfig {
     pub same_file_system: bool,
     pub threads: usize,
     pub max_repos: Option<usize>,
+    pub stop_at_git: bool,
 }
 
 impl Default for WalkerConfig {
@@ -41,6 +41,7 @@ impl Default for WalkerConfig {
             same_file_system: true,
             threads: num_cpus::get(),
             max_repos: None,
+            stop_at_git: true,
         }
     }
 }
@@ -90,15 +91,6 @@ pub fn list_repos(
         project_root.display()
     );
 
-    // Create a progress bar
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} [{elapsed_precise}] {msg}")
-            .unwrap(),
-    );
-    pb.set_message("Scanning for repositories...");
-
     // Create a channel for collecting results with a larger buffer
     let (tx, rx) = mpsc::sync_channel(1000); // Bounded channel with buffer
 
@@ -131,53 +123,61 @@ pub fn list_repos(
     let repo_count = AtomicUsize::new(0);
     let scanned_dirs = AtomicUsize::new(0);
 
-    // Use parallel iterator to process results and collect them
-    let results: Vec<String> = walker
+    // Process results and stream them directly
+    walker
         .into_iter()
         .par_bridge()
         .filter_map(|result| {
             scanned_dirs.fetch_add(1, Ordering::Relaxed);
             result.ok()
         })
-        .filter(|entry| entry.file_name() == ".git")
-        .map(|entry| {
+        .filter(|entry| {
+            if entry.file_name() == ".git" {
+                // If stop_at_git is enabled, check if any parent directory has a .git directory
+                if config.stop_at_git {
+                    if let Some(parent) = entry.path().parent() {
+                        // Check all parent directories up to the project root
+                        let mut current = parent;
+                        while let Some(parent) = current.parent() {
+                            // If we've reached the project root, we're done checking
+                            if parent == project_root {
+                                break;
+                            }
+                            // If any parent directory has a .git directory, skip this entry
+                            if parent.join(".git").exists() {
+                                return false;
+                            }
+                            current = parent;
+                        }
+                    }
+                }
+                true
+            } else {
+                false
+            }
+        })
+        .for_each(|entry| {
             if let Some(repo_path) = entry.path().parent() {
                 let count = repo_count.fetch_add(1, Ordering::Relaxed) + 1;
 
                 // Early exit if max_repos is reached
                 if let Some(max) = config.max_repos {
                     if count > max {
-                        return String::new();
+                        return;
                     }
                 }
 
-                if full {
+                let path_str = if full {
                     repo_path.display().to_string()
                 } else if let Ok(relative_path) = repo_path.strip_prefix(project_root) {
                     relative_path.display().to_string()
                 } else {
-                    String::new()
-                }
-            } else {
-                String::new()
+                    return;
+                };
+
+                let _ = tx.send(path_str);
             }
-        })
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    pb.set_message("Sorting results...");
-
-    // Sort results for consistent output
-    let mut sorted_results = results;
-    sorted_results.par_sort_unstable();
-
-    // Finish the progress bar
-    pb.finish_and_clear();
-
-    // Send sorted results
-    for path in sorted_results {
-        let _ = tx.send(path);
-    }
+        });
 
     // Update metrics before logging
     let metrics = PerformanceMetrics {
