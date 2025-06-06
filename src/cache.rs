@@ -63,7 +63,11 @@ impl Cache {
     pub fn new() -> Self {
         let cache_path = get_cache_path().unwrap_or_else(|e| {
             log::warn!("Failed to get cache path: {}", e);
-            env::temp_dir().join("rkit").join("cache.json")
+            let temp_path = env::temp_dir().join("rkit").join("cache.json");
+            if let Err(e) = validate_cache_path(&temp_path) {
+                log::error!("Failed to validate temp cache path: {}", e);
+            }
+            temp_path
         });
 
         let entries = match load_cache(&cache_path) {
@@ -225,6 +229,30 @@ fn get_current_time() -> CacheResult<u64> {
         .map(|d| d.as_secs())
 }
 
+/// Validates a cache path and ensures its parent directory exists
+fn validate_cache_path(path: &Path) -> CacheResult<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| {
+                CacheError::DirectoryError(RkitError::DirectoryCreationError {
+                    path: parent.to_path_buf(),
+                    source: e,
+                })
+            })?;
+        }
+    }
+
+    if path.exists() && !path.is_file() {
+        return Err(CacheError::DirectoryError(RkitError::ConfigError(format!(
+            "Cache path exists but is not a file: {}",
+            path.display()
+        ))));
+    }
+
+    Ok(())
+}
+
+/// Gets the platform-specific cache path
 fn get_cache_path() -> CacheResult<PathBuf> {
     let config_dir = if cfg!(windows) {
         dirs::config_dir().ok_or_else(|| {
@@ -241,7 +269,9 @@ fn get_cache_path() -> CacheResult<PathBuf> {
         home.join(".config")
     };
 
-    Ok(config_dir.join("rkit").join("cache.json"))
+    let cache_path = config_dir.join("rkit").join("cache.json");
+    validate_cache_path(&cache_path)?;
+    Ok(cache_path)
 }
 
 fn load_cache(cache_path: &Path) -> CacheResult<HashMap<PathBuf, CacheEntry>> {
