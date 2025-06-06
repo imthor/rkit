@@ -1,12 +1,10 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-mod commands;
-mod config;
-mod error;
-
-use commands::ls::WalkerConfig;
-use error::RkitResult;
+use rkit::commands;
+use rkit::commands::ls::WalkerConfig;
+use rkit::config;
+use rkit::error::RkitResult;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -54,24 +52,29 @@ enum Commands {
 }
 
 fn main() -> RkitResult<()> {
-    let cli = Cli::parse();
+    let args = Cli::parse();
 
-    // Set log level based on verbosity
-    let log_level = match cli.verbose {
-        0 => "info",
-        1 => "debug",
-        _ => "trace",
+    // Initialize logger with minimal output by default
+    let log_level = match args.verbose {
+        0 => log::LevelFilter::Warn,
+        1 => log::LevelFilter::Info,
+        2 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
     };
-    std::env::set_var("RUST_LOG", log_level);
-    env_logger::init();
-    log::debug!("Logger initialized at {} level", log_level);
+    
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level.as_str()))
+        .format_timestamp(None)
+        .format_module_path(false)
+        .format_target(false)
+        .init();
 
-    let config = config::Config::load_or_create()?;
-    let project_root = config.expand_project_root()?;
+    // Get project root from config or use default
+    let project_root = config::Config::load_or_create()?.expand_project_root()?;
 
-    match cli.command {
+    match args.command {
         Commands::Clone { url } => {
-            commands::clone::clone(&url, &project_root)?;
+            log::info!("Cloning repository: {}", url);
+            commands::clone::clone(&url, &project_root)
         }
         Commands::Ls {
             full,
@@ -89,17 +92,16 @@ fn main() -> RkitResult<()> {
                 max_repos,
                 stop_at_git: true,
             };
-            commands::ls::list_repos(&project_root, full, Some(config))?;
+            commands::ls::list_repos(&project_root, full, Some(config))
         }
         Commands::View { path } => {
+            log::info!("Viewing repository: {}", path.display());
             let repo_path = if path.is_absolute() {
                 path
             } else {
                 project_root.join(path)
             };
-            commands::view::view_repo(&repo_path, config.rview.as_deref())?;
+            commands::view::view_repo(&repo_path, None)
         }
     }
-
-    Ok(())
 }

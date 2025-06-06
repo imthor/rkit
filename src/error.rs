@@ -1,34 +1,39 @@
-use std::path::PathBuf;
-use thiserror::Error;
+// Remove unused imports
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum RkitError {
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+
+    #[error("YAML error: {0}")]
+    YamlError(#[from] serde_yaml::Error),
+
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
     #[error("Failed to create directory: {path}")]
     DirectoryCreationError {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-
-    #[error("Failed to read file: {path}")]
-    FileReadError {
-        path: PathBuf,
-        #[source]
+        path: std::path::PathBuf,
         source: std::io::Error,
     },
 
     #[error("Failed to write file: {path}")]
     FileWriteError {
-        path: PathBuf,
-        #[source]
+        path: std::path::PathBuf,
         source: std::io::Error,
     },
 
-    #[error("Failed to parse YAML: {0}")]
-    YamlParseError(#[from] serde_yaml::Error),
+    #[error("Failed to read file: {path}")]
+    FileReadError {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
+
+    #[error("Permission denied: {0}")]
+    PermissionError(String),
 
     #[error("Invalid repository URL: {0}")]
     InvalidRepoUrl(String),
@@ -39,24 +44,17 @@ pub enum RkitError {
     #[error("Shell command execution failed: {command}")]
     ShellCommandError {
         command: String,
-        #[source]
         source: std::io::Error,
     },
 
-    #[error("Environment variable not found: {0}")]
-    EnvVarError(String),
+    #[error("Repository not found: {0}")]
+    RepoNotFoundError(std::path::PathBuf),
 
     #[error("Invalid path: {0}")]
     InvalidPathError(String),
 
-    #[error("Repository not found: {0}")]
-    RepoNotFoundError(PathBuf),
-
-    #[error("Permission denied: {0}")]
-    PermissionError(String),
-
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    #[error("Environment variable not found: {0}")]
+    EnvVarError(String),
 }
 
 // Type alias for Result type using our custom error
