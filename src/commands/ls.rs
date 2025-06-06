@@ -7,7 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::cache::{Cache, CacheError};
-use crate::error::RkitResult;
+use crate::error::{RkitError, RkitResult};
 
 lazy_static! {
     static ref CACHE: Cache = Cache::new();
@@ -47,11 +47,14 @@ fn retry_operation<F, T>(f: F, max_retries: u32) -> Option<T>
 where
     F: Fn() -> Option<T>,
 {
-    for _ in 0..max_retries {
+    for attempt in 0..max_retries {
         if let Some(result) = f() {
             return Some(result);
         }
-        thread::sleep(Duration::from_millis(100));
+        if attempt < max_retries - 1 {
+            log::debug!("Retry attempt {} of {}", attempt + 1, max_retries);
+            thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
+        }
     }
     None
 }
@@ -69,16 +72,8 @@ pub fn list_repos(
         match e {
             CacheError::LockError(msg) => log::warn!("Failed to acquire cache lock: {}", msg),
             CacheError::DirectoryError(e) => log::warn!("Failed to access cache directory: {}", e),
+            CacheError::IoError(e) => log::warn!("Failed to write cache: {}", e),
             e => log::warn!("Failed to update cache: {}", e),
-        }
-    }
-
-    // Save the cache after validation
-    if let Err(e) = CACHE.save() {
-        match e {
-            CacheError::LockError(msg) => log::warn!("Failed to acquire cache lock: {}", msg),
-            CacheError::DirectoryError(e) => log::warn!("Failed to access cache directory: {}", e),
-            e => log::warn!("Failed to save cache: {}", e),
         }
     }
 
@@ -124,13 +119,21 @@ pub fn list_repos(
                     } else if let Ok(relative_path) = path.strip_prefix(project_root) {
                         println!("{}", relative_path.display());
                     }
+
+                    // Check if we've reached the maximum number of repositories
+                    if let Some(max_repos) = config.max_repos {
+                        if repo_count >= max_repos {
+                            log::info!("Reached maximum number of repositories ({})", max_repos);
+                            break;
+                        }
+                    }
                 }
             }
             Err(e) => log::error!("Error walking directory: {}", e),
         }
     }
     // Flush stdout to ensure all output is written
-    io::stdout().flush().unwrap();
+    io::stdout().flush().map_err(RkitError::IoError)?;
 
     // Cache all discovered repositories
     if !discovered_repos.is_empty() {
@@ -140,6 +143,7 @@ pub fn list_repos(
                 CacheError::DirectoryError(e) => {
                     log::warn!("Failed to access cache directory: {}", e)
                 }
+                CacheError::IoError(e) => log::warn!("Failed to write cache: {}", e),
                 e => log::warn!("Failed to save discovered repositories to cache: {}", e),
             }
         }

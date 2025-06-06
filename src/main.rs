@@ -101,7 +101,7 @@ fn main() -> RkitResult<()> {
             } else {
                 project_root.join(path)
             };
-            commands::view::view_repo(&repo_path, None)
+            commands::view::view_repo(&repo_path)
         }
     }
 }

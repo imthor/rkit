@@ -1,111 +1,85 @@
-use crate::cache::Cache;
-use crate::config::RViewCmd;
+use std::path::PathBuf;
+use std::process::Command;
+
+use crate::cache::{Cache, CacheError};
 use crate::error::{RkitError, RkitResult};
 use lazy_static::lazy_static;
-use std::path::Path;
-use std::process::{Command, Stdio};
 
 lazy_static! {
     static ref CACHE: Cache = Cache::new();
 }
 
-pub fn view_repo(repo_path: &Path, commands: Option<&[RViewCmd]>) -> RkitResult<()> {
-    // Validate repository path
-    if !repo_path.exists() {
-        log::error!("Repository not found: {}", repo_path.display());
-        return Err(RkitError::RepoNotFoundError(repo_path.to_path_buf()));
+pub fn view_repo(project_root: &PathBuf) -> RkitResult<()> {
+    // Validate and update cache before checking
+    if let Err(e) = Cache::new().validate_and_update() {
+        match e {
+            CacheError::LockError(msg) => log::warn!("Failed to acquire cache lock: {}", msg),
+            CacheError::DirectoryError(e) => log::warn!("Failed to access cache directory: {}", e),
+            CacheError::IoError(e) => log::warn!("Failed to write cache: {}", e),
+            e => log::warn!("Failed to update cache: {}", e),
+        }
     }
 
-    // Check if it's a git repository
-    let git_dir = repo_path.join(".git");
-    if !git_dir.exists() {
-        log::error!("Not a git repository: {}", repo_path.display());
+    // Check if the directory is a git repository
+    if !project_root.join(".git").exists() {
         return Err(RkitError::InvalidPathError(format!(
             "{} is not a git repository",
-            repo_path.display()
+            project_root.display()
         )));
     }
 
-    // Check read permissions
-    if repo_path.read_dir().is_err() {
-        log::error!("No permission to read directory: {}", repo_path.display());
-        return Err(RkitError::PermissionError(format!(
-            "No permission to read directory: {}",
-            repo_path.display()
+    // Get the git remote URL
+    let output = Command::new("git")
+        .current_dir(project_root)
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .map_err(RkitError::IoError)?;
+
+    if !output.status.success() {
+        return Err(RkitError::GitError(format!(
+            "Failed to get git remote URL: {}",
+            String::from_utf8_lossy(&output.stderr)
         )));
     }
 
-    // Cache the repository since we've validated it
-    if let Err(e) = CACHE.update_and_save(repo_path) {
-        log::warn!("Failed to cache repository: {}", e);
-    }
+    let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-    if let Some(cmds) = commands {
-        for cmd in cmds {
-            let command_str = cmd.command.replace("{REPO}", &repo_path.to_string_lossy());
-            let parts: Vec<&str> = command_str.split_whitespace().collect();
-
-            if parts.is_empty() {
-                log::warn!("Empty command for label: {}", cmd.label);
-                continue;
-            }
-
-            println!("=== {} ===", cmd.label);
-
-            log::debug!("Running command for {}: {}", cmd.label, command_str);
-            let mut child = Command::new(parts[0])
-                .args(&parts[1..])
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .spawn()
-                .map_err(|e| RkitError::ShellCommandError {
-                    command: cmd.command.clone(),
-                    source: e,
-                })?;
-
-            // Wait for the command to complete
-            let status = child.wait().map_err(|e| RkitError::ShellCommandError {
-                command: cmd.command.clone(),
-                source: e,
-            })?;
-
-            if !status.success() {
-                log::warn!("Command '{}' exited with status: {}", cmd.command, status);
-            }
-
-            println!(); // Add a blank line between commands
-        }
+    // Open the repository in the default browser
+    let url = if remote_url.starts_with("git@") {
+        // Convert SSH URL to HTTPS URL
+        remote_url
+            .replace("git@", "https://")
+            .replace(":", "/")
+            .replace(".git", "")
     } else {
-        // Fallback behavior
-        let readme_path = repo_path.join("README.md");
-        if readme_path.exists() {
-            log::info!("Displaying README for {}", repo_path.display());
-            println!("=== README ===");
-            let content =
-                std::fs::read_to_string(&readme_path).map_err(|e| RkitError::FileReadError {
-                    path: readme_path,
-                    source: e,
-                })?;
-            println!("{}", content);
-        } else {
-            log::info!("Listing directory contents for {}", repo_path.display());
-            println!("=== Directory Listing ===");
-            let mut child = Command::new("ls")
-                .arg("-la")
-                .arg(repo_path)
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .spawn()
-                .map_err(|e| RkitError::ShellCommandError {
-                    command: format!("ls -la {}", repo_path.display()),
-                    source: e,
-                })?;
+        remote_url.replace(".git", "")
+    };
 
-            child.wait().map_err(|e| RkitError::ShellCommandError {
-                command: format!("ls -la {}", repo_path.display()),
-                source: e,
-            })?;
-        }
+    // Use the appropriate command based on the OS
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open")
+        .arg(&url)
+        .status()
+        .map_err(RkitError::IoError)?;
+
+    #[cfg(target_os = "linux")]
+    let status = Command::new("xdg-open")
+        .arg(&url)
+        .status()
+        .map_err(RkitError::IoError)?;
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", &url])
+        .status()
+        .map_err(RkitError::IoError)?;
+
+    if !status.success() {
+        return Err(RkitError::ShellCommandError {
+            command: format!("Failed to open browser for URL: {}", url),
+            source: std::io::Error::other("Browser command failed"),
+        });
     }
+
     Ok(())
 }

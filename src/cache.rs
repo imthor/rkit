@@ -42,8 +42,8 @@ pub enum CacheError {
     #[error("Invalid cache version: {0}")]
     InvalidVersion(u32),
 
-    #[error("Failed to read cache file: {0}")]
-    ReadError(#[from] std::io::Error),
+    #[error("Failed to read/write cache file: {0}")]
+    IoError(#[from] std::io::Error),
 
     #[error("Failed to parse cache: {0}")]
     ParseError(#[from] serde_json::Error),
@@ -56,6 +56,9 @@ pub enum CacheError {
 
     #[error("Cache is full: {0} entries")]
     CacheFull(usize),
+
+    #[error("Invalid cache entry: {0}")]
+    InvalidEntryError(String),
 }
 
 // Type alias for cache-specific results
@@ -90,16 +93,20 @@ impl Cache {
     }
 
     pub fn with_config(config: CacheConfig) -> Self {
-        let cache_path = config.cache_path.clone().unwrap_or_else(|| {
-            get_cache_path().unwrap_or_else(|e| {
-                log::warn!("Failed to get cache path: {}", e);
-                let temp_path = env::temp_dir().join("rkit").join("cache.json");
-                if let Err(e) = validate_cache_path(&temp_path) {
-                    log::error!("Failed to validate temp cache path: {}", e);
+        let cache_path = config
+            .cache_path
+            .clone()
+            .unwrap_or_else(|| match get_cache_path() {
+                Ok(path) => path,
+                Err(e) => {
+                    log::warn!("Failed to get cache path: {}", e);
+                    let temp_path = env::temp_dir().join("rkit").join("cache.json");
+                    if let Err(e) = validate_cache_path(&temp_path) {
+                        log::error!("Failed to validate temp cache path: {}", e);
+                    }
+                    temp_path
                 }
-                temp_path
-            })
-        });
+            });
 
         let entries = match load_cache(&cache_path) {
             Ok(entries) => entries,
@@ -123,6 +130,14 @@ impl Cache {
     }
 
     pub fn insert(&self, path: PathBuf, entry: CacheEntry) -> CacheResult<()> {
+        // Validate entry before insertion
+        if !Self::validate_entry(&entry, self.config.ttl_seconds) {
+            return Err(CacheError::InvalidEntryError(format!(
+                "Invalid cache entry for path: {}",
+                path.display()
+            )));
+        }
+
         let mut entries = self
             .entries
             .write()
@@ -196,9 +211,11 @@ impl Cache {
 
     fn save_with_entries(&self, entries: &HashMap<PathBuf, CacheEntry>) -> CacheResult<()> {
         if let Some(parent) = self.cache_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| RkitError::DirectoryCreationError {
-                path: parent.to_path_buf(),
-                source: e,
+            fs::create_dir_all(parent).map_err(|e| {
+                CacheError::DirectoryError(RkitError::DirectoryCreationError {
+                    path: parent.to_path_buf(),
+                    source: e,
+                })
             })?;
         }
 
@@ -213,8 +230,23 @@ impl Cache {
         log::debug!("Saving cache to: {}", self.cache_path.display());
         log::debug!("Cache entries to save: {}", entries.len());
 
+        // Create a temporary file for atomic write
+        let temp_path = self.cache_path.with_extension("tmp");
         let json = serde_json::to_string_pretty(&cache_data)?;
-        fs::write(&self.cache_path, json)?;
+
+        // Write to temp file
+        if let Err(e) = fs::write(&temp_path, json) {
+            // Clean up temp file on error
+            let _ = fs::remove_file(&temp_path);
+            return Err(CacheError::IoError(e));
+        }
+
+        // Atomic rename
+        if let Err(e) = fs::rename(&temp_path, &self.cache_path) {
+            // Clean up temp file on error
+            let _ = fs::remove_file(&temp_path);
+            return Err(CacheError::IoError(e));
+        }
 
         Ok(())
     }
