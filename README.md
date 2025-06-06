@@ -145,9 +145,9 @@ project_root: ~/projects
 rview:
   - command: basename {REPO}
     label: Repo
-  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+  - command: git -C {REPO} -c color.ui=always rev-parse --abbrev-ref HEAD
     label: Active Branch
-  - command: git -C {REPO} status
+  - command: git -C {REPO} -c color.ui=always status
     label: Status
   - command: cat {REPO}/README.md
     label: README
@@ -157,9 +157,9 @@ project_root: %USERPROFILE%\projects
 rview:
   - command: powershell -Command "Split-Path -Leaf {REPO}"
     label: Repo
-  - command: git -C {REPO} rev-parse --abbrev-ref HEAD
+  - command: git -C {REPO} -c color.ui=always rev-parse --abbrev-ref HEAD
     label: Active Branch
-  - command: git -C {REPO} status
+  - command: git -C {REPO} -c color.ui=always status
     label: Status
   - command: type {REPO}\README.md
     label: README
@@ -185,7 +185,7 @@ Lists all Git repositories found under the configured project root.
 
 Options:
 - `--full`: Show absolute paths instead of relative paths
-- `--max-depth <depth>`: Maximum depth to search for repositories [default: 4]
+- `--max-depth <depth>`: Maximum depth to search for repositories [default: 10]
 - `--follow-links`: Follow symbolic links [default: false]
 - `--same-file-system`: Stay on the same filesystem [default: true]
 - `--threads <num>`: Number of threads to use for searching [default: number of CPU cores]
@@ -197,6 +197,7 @@ The command will:
 - By default, skip repositories that are inside other repositories (e.g., if repo2 contains a .git directory, any repositories inside repo2 will be skipped)
 - When `--no-stop-at-git` is used, it will find all repositories regardless of their location in the directory tree
 - Include a progress bar showing the scanning status
+- Cache repository information for faster subsequent lookups
 - When run with debug logging enabled (`RUST_LOG=debug`), it will display performance metrics including:
   - Number of repositories found
   - Number of directories scanned
