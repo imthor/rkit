@@ -61,7 +61,7 @@ fn main() -> RkitResult<()> {
         2 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
-    
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level.as_str()))
         .format_timestamp(None)
         .format_module_path(false)

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -55,11 +56,17 @@ struct CacheData {
 
 pub struct Cache {
     entries: RwLock<HashMap<PathBuf, CacheEntry>>,
+    cache_path: PathBuf,
 }
 
 impl Cache {
     pub fn new() -> Self {
-        let entries = match load_cache() {
+        let cache_path = get_cache_path().unwrap_or_else(|e| {
+            log::warn!("Failed to get cache path: {}", e);
+            env::temp_dir().join("rkit").join("cache.json")
+        });
+
+        let entries = match load_cache(&cache_path) {
             Ok(entries) => entries,
             Err(e) => {
                 log::warn!("Failed to load cache: {}", e);
@@ -68,6 +75,7 @@ impl Cache {
         };
         Self {
             entries: RwLock::new(entries),
+            cache_path,
         }
     }
 
@@ -79,41 +87,70 @@ impl Cache {
     }
 
     pub fn insert(&self, path: PathBuf, entry: CacheEntry) -> CacheResult<()> {
-        let mut entries = self.entries.write().map_err(|_| {
-            CacheError::LockError("Failed to acquire cache write lock".to_string())
-        })?;
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CacheError::LockError("Failed to acquire cache write lock".to_string()))?;
+
         entries.insert(path, entry);
-        self.save()?;
+
+        // Save without acquiring another lock
+        self.save_with_entries(&entries)?;
         Ok(())
     }
 
     pub fn validate_and_update(&self) -> CacheResult<()> {
-        let mut entries = self.entries.write().map_err(|_| {
-            CacheError::LockError("Failed to acquire cache write lock".to_string())
-        })?;
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CacheError::LockError("Failed to acquire cache write lock".to_string()))?;
 
-        // Create a new HashMap to store valid entries
-        let mut valid_entries = HashMap::new();
-        for (path, entry) in entries.iter() {
-            if Self::validate_entry(entry) {
-                valid_entries.insert(path.clone(), entry.clone());
+        // Use retain for in-place filtering
+        entries.retain(|path, entry| {
+            let is_valid = Self::validate_entry(entry);
+            if !is_valid {
+                log::debug!("Removing invalid cache entry: {}", path.display());
             }
-        }
+            is_valid
+        });
 
-        // Replace the cache with valid entries
-        *entries = valid_entries;
+        // Save the updated entries
+        self.save_with_entries(&entries)?;
 
         Ok(())
     }
 
-    pub fn save(&self) -> CacheResult<()> {
-        let entries = self.entries.read().map_err(|_| {
-            CacheError::LockError("Failed to acquire cache read lock".to_string())
-        })?;
+    /// Validates multiple paths in a single operation
+    /// Returns a vector of paths that have valid cache entries
+    pub fn validate_entries(&self, paths: &[PathBuf]) -> CacheResult<Vec<PathBuf>> {
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| CacheError::LockError("Failed to acquire cache read lock".to_string()))?;
 
-        let cache_path = get_cache_path()?;
-        
-        if let Some(parent) = cache_path.parent() {
+        Ok(paths
+            .iter()
+            .filter(|path| {
+                entries
+                    .get(*path)
+                    .map(Self::validate_entry)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect())
+    }
+
+    pub fn save(&self) -> CacheResult<()> {
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| CacheError::LockError("Failed to acquire cache read lock".to_string()))?;
+
+        self.save_with_entries(&entries)
+    }
+
+    fn save_with_entries(&self, entries: &HashMap<PathBuf, CacheEntry>) -> CacheResult<()> {
+        if let Some(parent) = self.cache_path.parent() {
             fs::create_dir_all(parent).map_err(|e| RkitError::DirectoryCreationError {
                 path: parent.to_path_buf(),
                 source: e,
@@ -121,12 +158,15 @@ impl Cache {
         }
 
         let cache_data = CacheData {
-            entries: entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            entries: entries
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             version: 1,
         };
 
         let json = serde_json::to_string_pretty(&cache_data)?;
-        fs::write(&cache_path, json)?;
+        fs::write(&self.cache_path, json)?;
 
         Ok(())
     }
@@ -200,18 +240,16 @@ fn get_cache_path() -> CacheResult<PathBuf> {
         })?;
         home.join(".config")
     };
-    
+
     Ok(config_dir.join("rkit").join("cache.json"))
 }
 
-fn load_cache() -> CacheResult<HashMap<PathBuf, CacheEntry>> {
-    let cache_path = get_cache_path()?;
-    
+fn load_cache(cache_path: &Path) -> CacheResult<HashMap<PathBuf, CacheEntry>> {
     if !cache_path.exists() {
         return Ok(HashMap::new());
     }
 
-    let contents = fs::read_to_string(&cache_path)?;
+    let contents = fs::read_to_string(cache_path)?;
     match serde_json::from_str::<CacheData>(&contents) {
         Ok(data) if data.version == 1 => Ok(data.entries),
         Ok(data) => {
@@ -223,4 +261,4 @@ fn load_cache() -> CacheResult<HashMap<PathBuf, CacheEntry>> {
             Err(CacheError::ParseError(e))
         }
     }
-} 
+}

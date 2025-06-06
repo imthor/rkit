@@ -1,10 +1,10 @@
 use ignore::WalkBuilder;
 use lazy_static::lazy_static;
+use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
-use std::io;
-use std::io::Write;
 
 use crate::cache::{Cache, CacheError};
 use crate::error::RkitResult;
@@ -83,14 +83,9 @@ pub fn list_repos(
     }
 
     // Check cache first with retry
-    if let Some(cached_entry) = retry_operation(
-        || {
-            CACHE
-                .get(project_root)
-                .filter(Cache::validate_entry)
-        },
-        3,
-    ) {
+    if let Some(cached_entry) =
+        retry_operation(|| CACHE.get(project_root).filter(Cache::validate_entry), 3)
+    {
         if full {
             println!("{}", cached_entry.path.display());
         } else if let Ok(relative_path) = cached_entry.path.strip_prefix(project_root) {
@@ -138,8 +133,12 @@ pub fn list_repos(
                         Ok(_) => Some(true),
                         Err(e) => {
                             match e {
-                                CacheError::LockError(msg) => log::warn!("Failed to acquire cache lock: {}", msg),
-                                CacheError::DirectoryError(e) => log::warn!("Failed to access cache directory: {}", e),
+                                CacheError::LockError(msg) => {
+                                    log::warn!("Failed to acquire cache lock: {}", msg)
+                                }
+                                CacheError::DirectoryError(e) => {
+                                    log::warn!("Failed to access cache directory: {}", e)
+                                }
                                 e => log::warn!("Failed to save cache: {}", e),
                             }
                             None
