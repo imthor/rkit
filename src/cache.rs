@@ -350,14 +350,46 @@ fn get_current_time() -> CacheResult<u64> {
 
 /// Validates a cache path and ensures its parent directory exists
 fn validate_cache_path(path: &Path) -> CacheResult<()> {
+    // Check if path is absolute
+    if !path.is_absolute() {
+        return Err(CacheError::DirectoryError(RkitError::ConfigError(format!(
+            "Cache path must be absolute: {}",
+            path.display()
+        ))));
+    }
+
+    // Check for path traversal attempts
+    if path.to_string_lossy().contains("..") {
+        return Err(CacheError::DirectoryError(RkitError::ConfigError(
+            "Path traversal detected in cache path".to_string(),
+        )));
+    }
+
     if let Some(parent) = path.parent() {
         if !parent.exists() {
+            log::debug!("Creating cache directory: {}", parent.display());
             fs::create_dir_all(parent).map_err(|e| {
                 CacheError::DirectoryError(RkitError::DirectoryCreationError {
                     path: parent.to_path_buf(),
                     source: e,
                 })
             })?;
+        }
+
+        // Verify directory permissions
+        if !parent.is_dir() {
+            return Err(CacheError::DirectoryError(RkitError::ConfigError(format!(
+                "Cache parent path exists but is not a directory: {}",
+                parent.display()
+            ))));
+        }
+
+        // Check if we have write permissions
+        if let Err(e) = fs::metadata(parent) {
+            return Err(CacheError::DirectoryError(RkitError::ConfigError(format!(
+                "Cannot access cache directory: {}",
+                e
+            ))));
         }
     }
 
@@ -389,6 +421,10 @@ fn get_cache_path() -> CacheResult<PathBuf> {
     };
 
     let cache_path = config_dir.join("rkit").join("cache.json");
+
+    // Log the cache path for debugging
+    log::debug!("Using cache path: {}", cache_path.display());
+
     validate_cache_path(&cache_path)?;
     Ok(cache_path)
 }
