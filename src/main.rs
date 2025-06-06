@@ -101,7 +101,8 @@ fn main() -> RkitResult<()> {
             } else {
                 project_root.join(path)
             };
-            commands::view::view_repo(&repo_path)
+            let config = config::Config::load_or_create()?;
+            commands::view::view_repo(&repo_path, config.rview.as_deref())
         }
     }
 }
