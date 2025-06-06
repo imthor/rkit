@@ -14,7 +14,11 @@ cargo install rkit
 ## Features
 
 - `clone`: Smart Git clone wrapper that organizes repositories by domain and organization
-- `ls`: List all Git repositories in your workspace
+- `ls`: High-performance Git repository scanner with:
+  - Parallel directory traversal
+  - Configurable search depth and thread count
+  - Progress bar and performance metrics
+  - Symbolic link and filesystem boundary control
 - `view`: View repository information and metadata
 
 ## Shell Extensions
@@ -174,10 +178,23 @@ This will clone the repository to `~/projects/github.com/imthor/rkit` (or `%USER
 ### List repositories
 
 ```bash
-rkit ls [--full]
+rkit ls [--full] [--max-depth <depth>] [--follow-links] [--same-file-system] [--threads <num>] [--max-repos <num>]
 ```
 
-Lists all Git repositories found under the configured project root. Use the `--full` flag to show absolute paths instead of relative paths.
+Lists all Git repositories found under the configured project root.
+
+Options:
+- `--full`: Show absolute paths instead of relative paths
+- `--max-depth <depth>`: Maximum depth to search for repositories [default: 10]
+- `--follow-links`: Follow symbolic links [default: false]
+- `--same-file-system`: Stay on the same filesystem [default: true]
+- `--threads <num>`: Number of threads to use for searching [default: number of CPU cores]
+- `--max-repos <num>`: Maximum number of repositories to find [default: no limit]
+
+The command includes a progress bar showing the scanning and sorting status, and when run with debug logging enabled (`RUST_LOG=debug`), it will display performance metrics including:
+- Number of repositories found
+- Number of directories scanned
+- Total duration of the operation
 
 ### View repository information
 

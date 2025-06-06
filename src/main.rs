@@ -5,6 +5,7 @@ mod commands;
 mod config;
 mod error;
 
+use commands::ls::WalkerConfig;
 use error::RkitResult;
 
 #[derive(Parser)]
@@ -29,6 +30,21 @@ enum Commands {
         /// Show full paths instead of relative paths
         #[arg(short, long)]
         full: bool,
+        /// Maximum depth to search for repositories [default: 10]
+        #[arg(long)]
+        max_depth: Option<usize>,
+        /// Follow symbolic links [default: false]
+        #[arg(long)]
+        follow_links: bool,
+        /// Stay on the same filesystem [default: true]
+        #[arg(long)]
+        same_file_system: bool,
+        /// Number of threads to use for searching [default: number of CPU cores]
+        #[arg(long)]
+        threads: Option<usize>,
+        /// Maximum number of repositories to find [default: no limit]
+        #[arg(long)]
+        max_repos: Option<usize>,
     },
     /// View repository information
     View {
@@ -57,8 +73,22 @@ fn main() -> RkitResult<()> {
         Commands::Clone { url } => {
             commands::clone::clone(&url, &project_root)?;
         }
-        Commands::Ls { full } => {
-            commands::ls::list_repos(&project_root, full)?;
+        Commands::Ls {
+            full,
+            max_depth,
+            follow_links,
+            same_file_system,
+            threads,
+            max_repos,
+        } => {
+            let config = WalkerConfig {
+                max_depth,
+                follow_links,
+                same_file_system,
+                threads: threads.unwrap_or_else(num_cpus::get),
+                max_repos,
+            };
+            commands::ls::list_repos(&project_root, full, Some(config))?;
         }
         Commands::View { path } => {
             let repo_path = if path.is_absolute() {
