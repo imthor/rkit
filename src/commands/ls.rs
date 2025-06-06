@@ -36,7 +36,7 @@ pub struct WalkerConfig {
 impl Default for WalkerConfig {
     fn default() -> Self {
         Self {
-            max_depth: Some(10),
+            max_depth: Some(4),
             follow_links: false,
             same_file_system: true,
             threads: num_cpus::get(),

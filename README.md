@@ -178,23 +178,29 @@ This will clone the repository to `~/projects/github.com/imthor/rkit` (or `%USER
 ### List repositories
 
 ```bash
-rkit ls [--full] [--max-depth <depth>] [--follow-links] [--same-file-system] [--threads <num>] [--max-repos <num>]
+rkit ls [--full] [--max-depth <depth>] [--follow-links] [--same-file-system] [--threads <num>] [--max-repos <num>] [--no-stop-at-git]
 ```
 
 Lists all Git repositories found under the configured project root.
 
 Options:
 - `--full`: Show absolute paths instead of relative paths
-- `--max-depth <depth>`: Maximum depth to search for repositories [default: 10]
+- `--max-depth <depth>`: Maximum depth to search for repositories [default: 4]
 - `--follow-links`: Follow symbolic links [default: false]
 - `--same-file-system`: Stay on the same filesystem [default: true]
 - `--threads <num>`: Number of threads to use for searching [default: number of CPU cores]
 - `--max-repos <num>`: Maximum number of repositories to find [default: no limit]
+- `--no-stop-at-git`: Don't skip repositories that are inside other repositories [default: false]
 
-The command includes a progress bar showing the scanning and sorting status, and when run with debug logging enabled (`RUST_LOG=debug`), it will display performance metrics including:
-- Number of repositories found
-- Number of directories scanned
-- Total duration of the operation
+The command will:
+- Show directories as they are found, providing immediate feedback
+- By default, skip repositories that are inside other repositories (e.g., if repo2 contains a .git directory, any repositories inside repo2 will be skipped)
+- When `--no-stop-at-git` is used, it will find all repositories regardless of their location in the directory tree
+- Include a progress bar showing the scanning status
+- When run with debug logging enabled (`RUST_LOG=debug`), it will display performance metrics including:
+  - Number of repositories found
+  - Number of directories scanned
+  - Total duration of the operation
 
 ### View repository information
 
