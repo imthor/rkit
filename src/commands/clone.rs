@@ -2,6 +2,12 @@ use crate::error::{RkitError, RkitResult};
 use std::path::Path;
 use std::process::Command;
 use url::Url;
+use crate::cache::Cache;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref CACHE: Cache = Cache::new();
+}
 
 #[derive(Debug)]
 pub struct ParsedRepoUrl {
@@ -146,6 +152,11 @@ pub fn clone(url: &str, project_root: &Path) -> RkitResult<()> {
             "git clone failed with status: {}",
             status
         )));
+    }
+
+    // Cache the newly cloned repository
+    if let Err(e) = CACHE.update_and_save(&target_dir) {
+        log::warn!("Failed to cache cloned repository: {}", e);
     }
 
     log::info!("Successfully cloned {} to {}", url, target_dir.display());

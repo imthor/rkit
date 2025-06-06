@@ -9,6 +9,27 @@ use thiserror::Error;
 
 use crate::error::RkitError;
 
+/// Configuration options for the cache
+#[derive(Debug, Clone)]
+pub struct CacheConfig {
+    /// Time-to-live for cache entries in seconds
+    pub ttl_seconds: u64,
+    /// Maximum number of entries in the cache (None for unlimited)
+    pub max_entries: Option<usize>,
+    /// Custom cache file path (None for default)
+    pub cache_path: Option<PathBuf>,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            ttl_seconds: 24 * 60 * 60, // 24 hours
+            max_entries: None,
+            cache_path: None,
+        }
+    }
+}
+
 /// Represents errors that can occur in the cache module
 #[derive(Debug, Error)]
 pub enum CacheError {
@@ -32,6 +53,9 @@ pub enum CacheError {
 
     #[error("Failed to create cache directory: {0}")]
     DirectoryError(#[from] RkitError),
+
+    #[error("Cache is full: {0} entries")]
+    CacheFull(usize),
 }
 
 // Type alias for cache-specific results
@@ -57,17 +81,24 @@ struct CacheData {
 pub struct Cache {
     entries: RwLock<HashMap<PathBuf, CacheEntry>>,
     cache_path: PathBuf,
+    pub config: CacheConfig,
 }
 
 impl Cache {
     pub fn new() -> Self {
-        let cache_path = get_cache_path().unwrap_or_else(|e| {
-            log::warn!("Failed to get cache path: {}", e);
-            let temp_path = env::temp_dir().join("rkit").join("cache.json");
-            if let Err(e) = validate_cache_path(&temp_path) {
-                log::error!("Failed to validate temp cache path: {}", e);
-            }
-            temp_path
+        Self::with_config(CacheConfig::default())
+    }
+
+    pub fn with_config(config: CacheConfig) -> Self {
+        let cache_path = config.cache_path.clone().unwrap_or_else(|| {
+            get_cache_path().unwrap_or_else(|e| {
+                log::warn!("Failed to get cache path: {}", e);
+                let temp_path = env::temp_dir().join("rkit").join("cache.json");
+                if let Err(e) = validate_cache_path(&temp_path) {
+                    log::error!("Failed to validate temp cache path: {}", e);
+                }
+                temp_path
+            })
         });
 
         let entries = match load_cache(&cache_path) {
@@ -80,6 +111,7 @@ impl Cache {
         Self {
             entries: RwLock::new(entries),
             cache_path,
+            config,
         }
     }
 
@@ -96,7 +128,16 @@ impl Cache {
             .write()
             .map_err(|_| CacheError::LockError("Failed to acquire cache write lock".to_string()))?;
 
+        // Check if we need to enforce max entries
+        if let Some(max_entries) = self.config.max_entries {
+            if entries.len() >= max_entries {
+                return Err(CacheError::CacheFull(max_entries));
+            }
+        }
+
+        log::debug!("Inserting cache entry for path: {}", path.display());
         entries.insert(path, entry);
+        log::debug!("Current cache size: {} entries", entries.len());
 
         // Save without acquiring another lock
         self.save_with_entries(&entries)?;
@@ -111,7 +152,7 @@ impl Cache {
 
         // Use retain for in-place filtering
         entries.retain(|path, entry| {
-            let is_valid = Self::validate_entry(entry);
+            let is_valid = Self::validate_entry(entry, self.config.ttl_seconds);
             if !is_valid {
                 log::debug!("Removing invalid cache entry: {}", path.display());
             }
@@ -137,7 +178,7 @@ impl Cache {
             .filter(|path| {
                 entries
                     .get(*path)
-                    .map(Self::validate_entry)
+                    .map(|entry| Self::validate_entry(entry, self.config.ttl_seconds))
                     .unwrap_or(false)
             })
             .cloned()
@@ -169,13 +210,16 @@ impl Cache {
             version: 1,
         };
 
+        log::debug!("Saving cache to: {}", self.cache_path.display());
+        log::debug!("Cache entries to save: {}", entries.len());
+
         let json = serde_json::to_string_pretty(&cache_data)?;
         fs::write(&self.cache_path, json)?;
 
         Ok(())
     }
 
-    pub fn validate_entry(entry: &CacheEntry) -> bool {
+    pub fn validate_entry(entry: &CacheEntry, ttl_seconds: u64) -> bool {
         let now = match get_current_time() {
             Ok(time) => time,
             Err(e) => {
@@ -185,12 +229,23 @@ impl Cache {
         };
 
         // Check if the entry has expired
-        if now - entry.last_checked > CACHE_TTL_SECONDS {
+        if now - entry.last_checked > ttl_seconds {
+            log::debug!("Cache entry expired for path: {}", entry.path.display());
             return false;
         }
 
         // Check if the path exists and is a git repository
-        entry.path.exists() && entry.path.join(".git").exists()
+        let path_exists = entry.path.exists();
+        let is_git_repo = entry.path.join(".git").exists();
+        
+        if !path_exists {
+            log::debug!("Cache entry path does not exist: {}", entry.path.display());
+        }
+        if !is_git_repo {
+            log::debug!("Cache entry is not a git repository: {}", entry.path.display());
+        }
+
+        path_exists && is_git_repo
     }
 
     pub fn update_entry(path: &Path) -> CacheEntry {
@@ -212,6 +267,34 @@ impl Cache {
             last_checked: now,
         }
     }
+
+    /// Updates an existing entry and saves it to the cache
+    pub fn update_and_save(&self, path: &Path) -> CacheResult<()> {
+        log::debug!("Updating and saving cache entry for path: {}", path.display());
+        let entry = Self::update_entry(path);
+        self.insert(path.to_path_buf(), entry)
+    }
+
+    /// Updates multiple entries and saves them to the cache
+    pub fn update_and_save_many(&self, paths: &[PathBuf]) -> CacheResult<()> {
+        log::debug!("Updating and saving {} cache entries", paths.len());
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CacheError::LockError("Failed to acquire cache write lock".to_string()))?;
+
+        for path in paths {
+            let entry = Self::update_entry(path);
+            entries.insert(path.clone(), entry);
+        }
+
+        self.save_with_entries(&entries)
+    }
+
+    /// Get the TTL in seconds for cache entries
+    pub fn ttl_seconds(&self) -> u64 {
+        self.config.ttl_seconds
+    }
 }
 
 impl Default for Cache {
@@ -219,8 +302,6 @@ impl Default for Cache {
         Self::new()
     }
 }
-
-const CACHE_TTL_SECONDS: u64 = 24 * 60 * 60; // 24 hours
 
 fn get_current_time() -> CacheResult<u64> {
     SystemTime::now()

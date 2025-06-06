@@ -2,6 +2,12 @@ use crate::config::RViewCmd;
 use crate::error::{RkitError, RkitResult};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use crate::cache::Cache;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref CACHE: Cache = Cache::new();
+}
 
 pub fn view_repo(repo_path: &Path, commands: Option<&[RViewCmd]>) -> RkitResult<()> {
     // Validate repository path
@@ -27,6 +33,11 @@ pub fn view_repo(repo_path: &Path, commands: Option<&[RViewCmd]>) -> RkitResult<
             "No permission to read directory: {}",
             repo_path.display()
         )));
+    }
+
+    // Cache the repository since we've validated it
+    if let Err(e) = CACHE.update_and_save(repo_path) {
+        log::warn!("Failed to cache repository: {}", e);
     }
 
     if let Some(cmds) = commands {
