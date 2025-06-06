@@ -27,3 +27,6 @@ Cargo.lock
 
 # Don't ignore etc directory
 !etc/ 
+
+# ignore cursor files
+cursor_*
