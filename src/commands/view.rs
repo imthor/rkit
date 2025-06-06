@@ -1,9 +1,9 @@
+use crate::cache::Cache;
 use crate::config::RViewCmd;
 use crate::error::{RkitError, RkitResult};
+use lazy_static::lazy_static;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use crate::cache::Cache;
-use lazy_static::lazy_static;
 
 lazy_static! {
     static ref CACHE: Cache = Cache::new();

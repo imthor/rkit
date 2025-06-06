@@ -83,9 +83,14 @@ pub fn list_repos(
     }
 
     // Check cache first with retry
-    if let Some(cached_entry) =
-        retry_operation(|| CACHE.get(project_root).filter(|entry| Cache::validate_entry(entry, CACHE.ttl_seconds())), 3)
-    {
+    if let Some(cached_entry) = retry_operation(
+        || {
+            CACHE
+                .get(project_root)
+                .filter(|entry| Cache::validate_entry(entry, CACHE.ttl_seconds()))
+        },
+        3,
+    ) {
         if full {
             println!("{}", cached_entry.path.display());
         } else if let Ok(relative_path) = cached_entry.path.strip_prefix(project_root) {
@@ -113,7 +118,7 @@ pub fn list_repos(
                     repo_count += 1;
                     let path = entry.path().to_path_buf();
                     discovered_repos.push(path.clone());
-                    
+
                     if full {
                         println!("{}", path.display());
                     } else if let Ok(relative_path) = path.strip_prefix(project_root) {
@@ -132,7 +137,9 @@ pub fn list_repos(
         if let Err(e) = CACHE.update_and_save_many(&discovered_repos) {
             match e {
                 CacheError::LockError(msg) => log::warn!("Failed to acquire cache lock: {}", msg),
-                CacheError::DirectoryError(e) => log::warn!("Failed to access cache directory: {}", e),
+                CacheError::DirectoryError(e) => {
+                    log::warn!("Failed to access cache directory: {}", e)
+                }
                 e => log::warn!("Failed to save discovered repositories to cache: {}", e),
             }
         }

@@ -237,12 +237,15 @@ impl Cache {
         // Check if the path exists and is a git repository
         let path_exists = entry.path.exists();
         let is_git_repo = entry.path.join(".git").exists();
-        
+
         if !path_exists {
             log::debug!("Cache entry path does not exist: {}", entry.path.display());
         }
         if !is_git_repo {
-            log::debug!("Cache entry is not a git repository: {}", entry.path.display());
+            log::debug!(
+                "Cache entry is not a git repository: {}",
+                entry.path.display()
+            );
         }
 
         path_exists && is_git_repo
@@ -270,7 +273,10 @@ impl Cache {
 
     /// Updates an existing entry and saves it to the cache
     pub fn update_and_save(&self, path: &Path) -> CacheResult<()> {
-        log::debug!("Updating and saving cache entry for path: {}", path.display());
+        log::debug!(
+            "Updating and saving cache entry for path: {}",
+            path.display()
+        );
         let entry = Self::update_entry(path);
         self.insert(path.to_path_buf(), entry)
     }
