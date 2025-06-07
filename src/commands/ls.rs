@@ -115,7 +115,8 @@ pub fn list_repos(
             scanned_dirs.fetch_add(1, Ordering::SeqCst);
             match result {
                 Ok(entry) => {
-                    if entry.path().join(".git").exists() {
+                    let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                    if is_dir && entry.path().join(".git").exists() {
                         repo_count.fetch_add(1, Ordering::SeqCst);
                         let path = entry.path().to_path_buf();
                         {
@@ -133,6 +134,10 @@ pub fn list_repos(
                                 log::info!("Reached maximum number of repositories ({})", max_repos);
                                 return WalkState::Quit;
                             }
+                        }
+
+                        if config.stop_at_git {
+                            return WalkState::Skip;
                         }
                     }
                 }
