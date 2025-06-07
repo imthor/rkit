@@ -1,8 +1,9 @@
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
 use lazy_static::lazy_static;
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{atomic::{AtomicUsize, Ordering}, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -94,44 +95,59 @@ pub fn list_repos(
         return Ok(());
     }
 
-    // Use a simpler, non-parallel walker
+    // Build parallel walker using configured threads
     let walker = WalkBuilder::new(project_root)
         .max_depth(config.max_depth)
         .follow_links(config.follow_links)
         .same_file_system(config.same_file_system)
-        .build();
+        .threads(config.threads)
+        .build_parallel();
 
-    let mut repo_count = 0;
-    let mut scanned_dirs = 0;
-    let mut discovered_repos = Vec::new();
+    let repo_count = Arc::new(AtomicUsize::new(0));
+    let scanned_dirs = Arc::new(AtomicUsize::new(0));
+    let discovered_repos = Arc::new(Mutex::new(Vec::new()));
 
-    for result in walker {
-        scanned_dirs += 1;
-        match result {
-            Ok(entry) => {
-                if entry.path().join(".git").exists() {
-                    repo_count += 1;
-                    let path = entry.path().to_path_buf();
-                    discovered_repos.push(path.clone());
+    walker.run(|| {
+        let repo_count = Arc::clone(&repo_count);
+        let scanned_dirs = Arc::clone(&scanned_dirs);
+        let discovered_repos = Arc::clone(&discovered_repos);
+        Box::new(move |result| {
+            scanned_dirs.fetch_add(1, Ordering::SeqCst);
+            match result {
+                Ok(entry) => {
+                    if entry.path().join(".git").exists() {
+                        repo_count.fetch_add(1, Ordering::SeqCst);
+                        let path = entry.path().to_path_buf();
+                        {
+                            discovered_repos.lock().unwrap().push(path.clone());
+                        }
 
-                    if full {
-                        println!("{}", path.display());
-                    } else if let Ok(relative_path) = path.strip_prefix(project_root) {
-                        println!("{}", relative_path.display());
-                    }
+                        if full {
+                            println!("{}", path.display());
+                        } else if let Ok(relative_path) = path.strip_prefix(project_root) {
+                            println!("{}", relative_path.display());
+                        }
 
-                    // Check if we've reached the maximum number of repositories
-                    if let Some(max_repos) = config.max_repos {
-                        if repo_count >= max_repos {
-                            log::info!("Reached maximum number of repositories ({})", max_repos);
-                            break;
+                        if let Some(max_repos) = config.max_repos {
+                            if repo_count.load(Ordering::SeqCst) >= max_repos {
+                                log::info!("Reached maximum number of repositories ({})", max_repos);
+                                return WalkState::Quit;
+                            }
                         }
                     }
                 }
+                Err(e) => log::error!("Error walking directory: {}", e),
             }
-            Err(e) => log::error!("Error walking directory: {}", e),
-        }
-    }
+            WalkState::Continue
+        })
+    });
+
+    let repo_count = repo_count.load(Ordering::SeqCst);
+    let scanned_dirs = scanned_dirs.load(Ordering::SeqCst);
+    let discovered_repos = Arc::try_unwrap(discovered_repos)
+        .unwrap()
+        .into_inner()
+        .unwrap();
     // Flush stdout to ensure all output is written
     io::stdout().flush().map_err(RkitError::IoError)?;
 
