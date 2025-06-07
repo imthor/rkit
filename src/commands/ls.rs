@@ -192,3 +192,110 @@ pub fn list_repos(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_git_repo(path: &PathBuf) {
+        fs::create_dir_all(path.join(".git")).unwrap();
+    }
+
+    #[test]
+    fn test_list_repos_relative() {
+        let dir = tempdir().unwrap();
+        let repo1 = dir.path().join("repo1");
+        let repo2 = dir.path().join("repo2");
+        create_git_repo(&repo1);
+        create_git_repo(&repo2);
+
+        // For now, just call the function to check it doesn't error
+        let res = list_repos(&dir.path().to_path_buf(), false, None);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_list_repos_full() {
+        let dir = tempdir().unwrap();
+        let repo1 = dir.path().join("repo1");
+        let repo2 = dir.path().join("repo2");
+        create_git_repo(&repo1);
+        create_git_repo(&repo2);
+
+        let res = list_repos(&dir.path().to_path_buf(), true, None);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_list_repos_with_max_repos_config() {
+        let dir = tempdir().unwrap();
+        let repo1 = dir.path().join("repo1");
+        let repo2 = dir.path().join("repo2");
+        create_git_repo(&repo1);
+        create_git_repo(&repo2);
+
+        let config = WalkerConfig {
+            max_repos: Some(1),
+            ..Default::default()
+        };
+
+        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_list_repos_with_depth_config() {
+        let dir = tempdir().unwrap();
+        let repo1 = dir.path().join("level1").join("repo1");
+        let repo2 = dir.path().join("level1").join("level2").join("repo2");
+        create_git_repo(&repo1);
+        create_git_repo(&repo2);
+
+        let config = WalkerConfig {
+            max_depth: Some(2), // Should find repo1 but not repo2
+            ..Default::default()
+        };
+
+        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_list_repos_with_threads_config() {
+        let dir = tempdir().unwrap();
+        let repo1 = dir.path().join("repo1");
+        create_git_repo(&repo1);
+
+        let config = WalkerConfig {
+            threads: 1,
+            ..Default::default()
+        };
+
+        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_list_repos_no_git_repos() {
+        let dir = tempdir().unwrap();
+        // Create regular directories without .git
+        fs::create_dir_all(dir.path().join("not_a_repo")).unwrap();
+        fs::create_dir_all(dir.path().join("also_not_a_repo")).unwrap();
+
+        let res = list_repos(&dir.path().to_path_buf(), false, None);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_walker_config_default() {
+        let config = WalkerConfig::default();
+        assert_eq!(config.max_depth, Some(4));
+        assert_eq!(config.follow_links, false);
+        assert_eq!(config.same_file_system, true);
+        assert!(config.threads > 0);
+        assert_eq!(config.max_repos, None);
+        assert_eq!(config.stop_at_git, true);
+    }
+}
