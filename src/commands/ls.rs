@@ -7,7 +7,6 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
 };
-use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::cache::{Cache, CacheError};
@@ -47,22 +46,6 @@ impl Default for WalkerConfig {
     }
 }
 
-fn retry_operation<F, T>(f: F, max_retries: u32) -> Option<T>
-where
-    F: Fn() -> Option<T>,
-{
-    for attempt in 0..max_retries {
-        if let Some(result) = f() {
-            return Some(result);
-        }
-        if attempt < max_retries - 1 {
-            log::debug!("Retry attempt {} of {}", attempt + 1, max_retries);
-            thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
-        }
-    }
-    None
-}
-
 pub fn list_repos(
     project_root: &PathBuf,
     full: bool,
@@ -81,15 +64,11 @@ pub fn list_repos(
         }
     }
 
-    // Check cache first with retry
-    if let Some(cached_entry) = retry_operation(
-        || {
-            CACHE
-                .get(project_root)
-                .filter(|entry| Cache::validate_entry(entry, CACHE.ttl_seconds()))
-        },
-        3,
-    ) {
+    // Check cache first without retry
+    if let Some(cached_entry) = CACHE
+        .get(project_root)
+        .filter(|entry| Cache::validate_entry(entry, CACHE.ttl_seconds()))
+    {
         if full {
             println!("{}", cached_entry.path.display());
         } else if let Ok(relative_path) = cached_entry.path.strip_prefix(project_root) {
@@ -126,7 +105,7 @@ pub fn list_repos(
                         // Use read_dir to check for a .git subdirectory efficiently
                         if let Ok(mut dir_iter) = std::fs::read_dir(entry.path()) {
                             let has_git = dir_iter.any(|e| {
-                                e.as_ref().ok().map_or(false, |de| de.file_name() == ".git")
+                                e.as_ref().ok().is_some_and(|de| de.file_name() == ".git")
                             });
                             if has_git {
                                 repo_count.fetch_add(1, Ordering::SeqCst);

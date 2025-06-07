@@ -123,10 +123,19 @@ impl Cache {
     }
 
     pub fn get(&self, path: &Path) -> Option<CacheEntry> {
-        self.entries
-            .read()
-            .ok()
-            .and_then(|entries| entries.get(path).cloned())
+        let mut entries = self.entries.write().ok()?;
+        if let Some(entry) = entries.get(path).cloned() {
+            if Self::validate_entry(&entry, self.config.ttl_seconds) {
+                Some(entry)
+            } else {
+                // Remove invalid entry and save cache
+                entries.remove(path);
+                let _ = self.save_with_entries(&entries);
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn insert(&self, path: PathBuf, entry: CacheEntry) -> CacheResult<()> {
