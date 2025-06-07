@@ -134,6 +134,15 @@ pub fn list_repos(
                                 return WalkState::Quit;
                             }
                         }
+
+                        if config.stop_at_git
+                            && entry
+                                .file_type()
+                                .map(|ft| ft.is_dir())
+                                .unwrap_or(false)
+                        {
+                            return WalkState::Skip;
+                        }
                     }
                 }
                 Err(e) => log::error!("Error walking directory: {}", e),
