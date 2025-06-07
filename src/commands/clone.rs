@@ -162,3 +162,99 @@ pub fn clone(url: &str, project_root: &Path) -> RkitResult<()> {
     log::info!("Successfully cloned {} to {}", url, target_dir.display());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_parse_repo_url_https() {
+        let url = "https://github.com/org/repo.git";
+        let parsed = parse_repo_url(url).unwrap();
+        assert_eq!(parsed.domain, "github.com");
+        assert_eq!(parsed.org, "org");
+        assert_eq!(parsed.repo, "repo");
+    }
+
+    #[test]
+    fn test_parse_repo_url_https_without_git_suffix() {
+        let url = "https://github.com/org/repo";
+        let parsed = parse_repo_url(url).unwrap();
+        assert_eq!(parsed.domain, "github.com");
+        assert_eq!(parsed.org, "org");
+        assert_eq!(parsed.repo, "repo");
+    }
+
+    #[test]
+    fn test_parse_repo_url_ssh() {
+        let url = "git@github.com:org/repo.git";
+        let parsed = parse_repo_url(url).unwrap();
+        assert_eq!(parsed.domain, "github.com");
+        assert_eq!(parsed.org, "org");
+        assert_eq!(parsed.repo, "repo");
+    }
+
+    #[test]
+    fn test_parse_repo_url_ssh_without_git_suffix() {
+        let url = "git@github.com:org/repo";
+        let parsed = parse_repo_url(url).unwrap();
+        assert_eq!(parsed.domain, "github.com");
+        assert_eq!(parsed.org, "org");
+        assert_eq!(parsed.repo, "repo");
+    }
+
+    #[test]
+    fn test_parse_repo_url_invalid() {
+        let url = "not_a_url";
+        let parsed = parse_repo_url(url);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn test_parse_repo_url_https_incomplete() {
+        let url = "https://github.com/org";
+        let parsed = parse_repo_url(url);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn test_parse_repo_url_ssh_incomplete() {
+        let url = "git@github.com:org";
+        let parsed = parse_repo_url(url);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn test_clone_invalid_url() {
+        let dir = tempdir().unwrap();
+        let url = "not_a_url";
+        let result = clone(url, dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_trim_git_suffix() {
+        assert_eq!(trim_git_suffix("repo.git"), "repo");
+        assert_eq!(trim_git_suffix("repo"), "repo");
+        assert_eq!(trim_git_suffix("my-repo.git"), "my-repo");
+    }
+
+    #[test]
+    fn test_target_directory_construction() {
+        let dir = tempdir().unwrap();
+        let url = "https://github.com/org/repo.git";
+        let parsed = parse_repo_url(url).unwrap();
+
+        let expected_target = dir
+            .path()
+            .join(&parsed.domain)
+            .join(&parsed.org)
+            .join(&parsed.repo);
+
+        assert_eq!(
+            expected_target,
+            dir.path().join("github.com").join("org").join("repo")
+        );
+    }
+}
