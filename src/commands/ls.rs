@@ -104,6 +104,9 @@ pub fn list_repos(
         .follow_links(config.follow_links)
         .same_file_system(config.same_file_system)
         .threads(config.threads)
+        .git_ignore(false)
+        .ignore(false)
+        .parents(false)
         .build_parallel();
 
     let repo_count = Arc::new(AtomicUsize::new(0));
@@ -118,33 +121,40 @@ pub fn list_repos(
             scanned_dirs.fetch_add(1, Ordering::SeqCst);
             match result {
                 Ok(entry) => {
-                    if entry.path().join(".git").exists() {
-                        repo_count.fetch_add(1, Ordering::SeqCst);
-                        let path = entry.path().to_path_buf();
-                        {
-                            discovered_repos.lock().unwrap().push(path.clone());
-                        }
+                    // Only check for .git if this entry is a directory
+                    if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                        // Use read_dir to check for a .git subdirectory efficiently
+                        if let Ok(mut dir_iter) = std::fs::read_dir(entry.path()) {
+                            let has_git = dir_iter.any(|e| {
+                                e.as_ref().ok().map_or(false, |de| de.file_name() == ".git")
+                            });
+                            if has_git {
+                                repo_count.fetch_add(1, Ordering::SeqCst);
+                                let path = entry.path().to_path_buf();
+                                {
+                                    discovered_repos.lock().unwrap().push(path.clone());
+                                }
 
-                        if full {
-                            println!("{}", path.display());
-                        } else if let Ok(relative_path) = path.strip_prefix(project_root) {
-                            println!("{}", relative_path.display());
-                        }
+                                if full {
+                                    println!("{}", path.display());
+                                } else if let Ok(relative_path) = path.strip_prefix(project_root) {
+                                    println!("{}", relative_path.display());
+                                }
 
-                        if let Some(max_repos) = config.max_repos {
-                            if repo_count.load(Ordering::SeqCst) >= max_repos {
-                                log::info!(
-                                    "Reached maximum number of repositories ({})",
-                                    max_repos
-                                );
-                                return WalkState::Quit;
+                                if let Some(max_repos) = config.max_repos {
+                                    if repo_count.load(Ordering::SeqCst) >= max_repos {
+                                        log::info!(
+                                            "Reached maximum number of repositories ({})",
+                                            max_repos
+                                        );
+                                        return WalkState::Quit;
+                                    }
+                                }
+
+                                if config.stop_at_git {
+                                    return WalkState::Skip;
+                                }
                             }
-                        }
-
-                        if config.stop_at_git
-                            && entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                        {
-                            return WalkState::Skip;
                         }
                     }
                 }
