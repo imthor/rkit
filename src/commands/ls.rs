@@ -3,7 +3,10 @@ use lazy_static::lazy_static;
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{atomic::{AtomicUsize, Ordering}, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -130,16 +133,16 @@ pub fn list_repos(
 
                         if let Some(max_repos) = config.max_repos {
                             if repo_count.load(Ordering::SeqCst) >= max_repos {
-                                log::info!("Reached maximum number of repositories ({})", max_repos);
+                                log::info!(
+                                    "Reached maximum number of repositories ({})",
+                                    max_repos
+                                );
                                 return WalkState::Quit;
                             }
                         }
 
                         if config.stop_at_git
-                            && entry
-                                .file_type()
-                                .map(|ft| ft.is_dir())
-                                .unwrap_or(false)
+                            && entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
                         {
                             return WalkState::Skip;
                         }
