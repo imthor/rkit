@@ -17,7 +17,7 @@ cargo install rkit
 - `ls`: High-performance Git repository scanner with:
   - Parallel directory traversal
   - Configurable search depth and thread count
-  - Progress bar and performance metrics
+  - Performance metrics (logged)
   - Symbolic link and filesystem boundary control
 - `view`: View repository information and metadata
 
@@ -196,7 +196,6 @@ The command will:
 - Show directories as they are found, providing immediate feedback
 - By default, skip repositories that are inside other repositories (e.g., if repo2 contains a .git directory, any repositories inside repo2 will be skipped)
 - When `--no-stop-at-git` is used, it will find all repositories regardless of their location in the directory tree
-- Include a progress bar showing the scanning status
 - Cache repository information for faster subsequent lookups
 - When run with debug logging enabled (`RUST_LOG=debug`), it will display performance metrics including:
   - Number of repositories found
