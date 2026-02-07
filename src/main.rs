@@ -43,6 +43,9 @@ enum Commands {
         /// Maximum number of repositories to find [default: no limit]
         #[arg(long)]
         max_repos: Option<usize>,
+        /// Don't skip repositories that are inside other repositories
+        #[arg(long)]
+        no_stop_at_git: bool,
     },
     /// View repository information
     View {
@@ -83,14 +86,19 @@ fn main() -> RkitResult<()> {
             same_file_system,
             threads,
             max_repos,
+            no_stop_at_git,
         } => {
             let config = WalkerConfig {
                 max_depth,
                 follow_links,
                 same_file_system,
-                threads: threads.unwrap_or_else(num_cpus::get),
+                threads: threads.unwrap_or_else(|| {
+                    std::thread::available_parallelism()
+                        .map(|n| n.get())
+                        .unwrap_or(1)
+                }),
                 max_repos,
-                stop_at_git: true,
+                stop_at_git: !no_stop_at_git,
             };
             commands::ls::list_repos(&project_root, full, Some(config))
         }

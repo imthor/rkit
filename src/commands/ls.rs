@@ -1,8 +1,7 @@
 use ignore::{WalkBuilder, WalkState};
-use lazy_static::lazy_static;
 use std::io;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
@@ -11,10 +10,7 @@ use std::time::{Duration, Instant};
 
 use crate::cache::{Cache, CacheError};
 use crate::error::{RkitError, RkitResult};
-
-lazy_static! {
-    static ref CACHE: Cache = Cache::new();
-}
+use crate::CACHE;
 
 #[derive(Debug)]
 struct PerformanceMetrics {
@@ -39,18 +35,16 @@ impl Default for WalkerConfig {
             max_depth: Some(4),
             follow_links: false,
             same_file_system: true,
-            threads: num_cpus::get(),
+            threads: std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1),
             max_repos: None,
             stop_at_git: true,
         }
     }
 }
 
-pub fn list_repos(
-    project_root: &PathBuf,
-    full: bool,
-    config: Option<WalkerConfig>,
-) -> RkitResult<()> {
+pub fn list_repos(project_root: &Path, full: bool, config: Option<WalkerConfig>) -> RkitResult<()> {
     let config = config.unwrap_or_default();
     let start = Instant::now();
 
@@ -97,42 +91,38 @@ pub fn list_repos(
         let scanned_dirs = Arc::clone(&scanned_dirs);
         let discovered_repos = Arc::clone(&discovered_repos);
         Box::new(move |result| {
-            scanned_dirs.fetch_add(1, Ordering::SeqCst);
+            scanned_dirs.fetch_add(1, Ordering::Relaxed);
             match result {
                 Ok(entry) => {
                     // Only check for .git if this entry is a directory
                     if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                        // Use read_dir to check for a .git subdirectory efficiently
-                        if let Ok(mut dir_iter) = std::fs::read_dir(entry.path()) {
-                            let has_git = dir_iter.any(|e| {
-                                e.as_ref().ok().is_some_and(|de| de.file_name() == ".git")
-                            });
-                            if has_git {
-                                repo_count.fetch_add(1, Ordering::SeqCst);
-                                let path = entry.path().to_path_buf();
-                                {
-                                    discovered_repos.lock().unwrap().push(path.clone());
-                                }
+                        // Single stat syscall instead of read_dir + iterate
+                        if entry.path().join(".git").exists() {
+                            repo_count.fetch_add(1, Ordering::Relaxed);
+                            let path = entry.path().to_path_buf();
 
-                                if full {
-                                    println!("{}", path.display());
-                                } else if let Ok(relative_path) = path.strip_prefix(project_root) {
-                                    println!("{}", relative_path.display());
-                                }
+                            if let Ok(mut repos) = discovered_repos.lock() {
+                                repos.push(path.clone());
+                            }
 
-                                if let Some(max_repos) = config.max_repos {
-                                    if repo_count.load(Ordering::SeqCst) >= max_repos {
-                                        log::info!(
-                                            "Reached maximum number of repositories ({})",
-                                            max_repos
-                                        );
-                                        return WalkState::Quit;
-                                    }
-                                }
+                            if full {
+                                println!("{}", path.display());
+                            } else if let Ok(relative_path) = path.strip_prefix(project_root) {
+                                println!("{}", relative_path.display());
+                            }
 
-                                if config.stop_at_git {
-                                    return WalkState::Skip;
+                            if let Some(max_repos) = config.max_repos {
+                                if repo_count.load(Ordering::Relaxed) >= max_repos {
+                                    log::info!(
+                                        "Reached maximum number of repositories ({})",
+                                        max_repos
+                                    );
+                                    return WalkState::Quit;
                                 }
+                            }
+
+                            if config.stop_at_git {
+                                return WalkState::Skip;
                             }
                         }
                     }
@@ -143,12 +133,13 @@ pub fn list_repos(
         })
     });
 
-    let repo_count = repo_count.load(Ordering::SeqCst);
-    let scanned_dirs = scanned_dirs.load(Ordering::SeqCst);
-    let discovered_repos = Arc::try_unwrap(discovered_repos)
-        .unwrap()
-        .into_inner()
-        .unwrap();
+    let repo_count = repo_count.load(Ordering::Relaxed);
+    let scanned_dirs = scanned_dirs.load(Ordering::Relaxed);
+    let discovered_repos = match Arc::try_unwrap(discovered_repos) {
+        Ok(mutex) => mutex.into_inner().unwrap_or_default(),
+        Err(arc) => arc.lock().map(|g| g.clone()).unwrap_or_default(),
+    };
+
     // Flush stdout to ensure all output is written
     io::stdout().flush().map_err(RkitError::IoError)?;
 
@@ -186,9 +177,10 @@ pub fn list_repos(
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::Path;
     use tempfile::tempdir;
 
-    fn create_git_repo(path: &PathBuf) {
+    fn create_git_repo(path: &Path) {
         fs::create_dir_all(path.join(".git")).unwrap();
     }
 
@@ -201,7 +193,7 @@ mod tests {
         create_git_repo(&repo2);
 
         // For now, just call the function to check it doesn't error
-        let res = list_repos(&dir.path().to_path_buf(), false, None);
+        let res = list_repos(dir.path(), false, None);
         assert!(res.is_ok());
     }
 
@@ -213,7 +205,7 @@ mod tests {
         create_git_repo(&repo1);
         create_git_repo(&repo2);
 
-        let res = list_repos(&dir.path().to_path_buf(), true, None);
+        let res = list_repos(dir.path(), true, None);
         assert!(res.is_ok());
     }
 
@@ -230,7 +222,7 @@ mod tests {
             ..Default::default()
         };
 
-        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        let res = list_repos(dir.path(), false, Some(config));
         assert!(res.is_ok());
     }
 
@@ -247,7 +239,7 @@ mod tests {
             ..Default::default()
         };
 
-        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        let res = list_repos(dir.path(), false, Some(config));
         assert!(res.is_ok());
     }
 
@@ -262,7 +254,7 @@ mod tests {
             ..Default::default()
         };
 
-        let res = list_repos(&dir.path().to_path_buf(), false, Some(config));
+        let res = list_repos(dir.path(), false, Some(config));
         assert!(res.is_ok());
     }
 
@@ -273,7 +265,7 @@ mod tests {
         fs::create_dir_all(dir.path().join("not_a_repo")).unwrap();
         fs::create_dir_all(dir.path().join("also_not_a_repo")).unwrap();
 
-        let res = list_repos(&dir.path().to_path_buf(), false, None);
+        let res = list_repos(dir.path(), false, None);
         assert!(res.is_ok());
     }
 
@@ -281,10 +273,10 @@ mod tests {
     fn test_walker_config_default() {
         let config = WalkerConfig::default();
         assert_eq!(config.max_depth, Some(4));
-        assert_eq!(config.follow_links, false);
-        assert_eq!(config.same_file_system, true);
+        assert!(!config.follow_links);
+        assert!(config.same_file_system);
         assert!(config.threads > 0);
         assert_eq!(config.max_repos, None);
-        assert_eq!(config.stop_at_git, true);
+        assert!(config.stop_at_git);
     }
 }

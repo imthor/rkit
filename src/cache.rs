@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
@@ -123,19 +123,23 @@ impl Cache {
     }
 
     pub fn get(&self, path: &Path) -> Option<CacheEntry> {
-        let mut entries = self.entries.write().ok()?;
-        if let Some(entry) = entries.get(path).cloned() {
-            if Self::validate_entry(&entry, self.config.ttl_seconds) {
-                Some(entry)
+        // Try read lock first to avoid write contention
+        {
+            let entries = self.entries.read().ok()?;
+            if let Some(entry) = entries.get(path) {
+                if Self::validate_entry(entry, self.config.ttl_seconds) {
+                    return Some(entry.clone());
+                }
             } else {
-                // Remove invalid entry and save cache
-                entries.remove(path);
-                let _ = self.save_with_entries(&entries);
-                None
+                return None;
             }
-        } else {
-            None
         }
+
+        // Entry exists but is invalid — acquire write lock to evict
+        let mut entries = self.entries.write().ok()?;
+        entries.remove(path);
+        let _ = self.save_with_entries(&entries);
+        None
     }
 
     pub fn insert(&self, path: PathBuf, entry: CacheEntry) -> CacheResult<()> {
@@ -229,10 +233,7 @@ impl Cache {
         }
 
         let cache_data = CacheData {
-            entries: entries
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
+            entries: entries.clone(),
             version: 1,
         };
 
@@ -241,7 +242,7 @@ impl Cache {
 
         // Create a temporary file for atomic write
         let temp_path = self.cache_path.with_extension("tmp");
-        let json = serde_json::to_string_pretty(&cache_data)?;
+        let json = serde_json::to_string(&cache_data)?;
 
         // Write to temp file
         if let Err(e) = fs::write(&temp_path, json) {
@@ -367,8 +368,8 @@ fn validate_cache_path(path: &Path) -> CacheResult<()> {
         ))));
     }
 
-    // Check for path traversal attempts
-    if path.to_string_lossy().contains("..") {
+    // Check for path traversal attempts using component inspection
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(CacheError::DirectoryError(RkitError::ConfigError(
             "Path traversal detected in cache path".to_string(),
         )));

@@ -1,13 +1,8 @@
-use crate::cache::Cache;
 use crate::error::{RkitError, RkitResult};
-use lazy_static::lazy_static;
+use crate::CACHE;
 use std::path::Path;
 use std::process::Command;
 use url::Url;
-
-lazy_static! {
-    static ref CACHE: Cache = Cache::new();
-}
 
 #[derive(Debug)]
 pub struct ParsedRepoUrl {

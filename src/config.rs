@@ -17,19 +17,13 @@ pub struct Config {
 
 impl Config {
     fn get_default_config() -> RkitResult<Config> {
-        let default_config_path = if cfg!(windows) {
-            "etc/default_config_windows.yaml"
+        let config_str = if cfg!(windows) {
+            include_str!("../etc/default_config_windows.yaml")
         } else {
-            "etc/default_config_linux.yaml"
+            include_str!("../etc/default_config_linux.yaml")
         };
 
-        let config_str =
-            fs::read_to_string(default_config_path).map_err(|e| RkitError::FileReadError {
-                path: PathBuf::from(default_config_path),
-                source: e,
-            })?;
-
-        let config: Config = serde_yaml::from_str(&config_str)?;
+        let config: Config = serde_yml::from_str(config_str)?;
         Ok(config)
     }
 
@@ -44,7 +38,10 @@ impl Config {
                 .join("rkit")
         } else {
             // On Unix-like systems, use ~/.config/rkit
-            PathBuf::from(shellexpand::tilde("~/.config/rkit").as_ref())
+            dirs::home_dir()
+                .ok_or_else(|| RkitError::ConfigError("Could not find home directory".to_string()))?
+                .join(".config")
+                .join("rkit")
         };
 
         fs::create_dir_all(&config_dir).map_err(|e| RkitError::DirectoryCreationError {
@@ -56,7 +53,7 @@ impl Config {
 
         if !config_path.exists() {
             let default_config = Self::get_default_config()?;
-            let yaml = serde_yaml::to_string(&default_config)?;
+            let yaml = serde_yml::to_string(&default_config)?;
             fs::write(&config_path, yaml).map_err(|e| RkitError::FileWriteError {
                 path: config_path.clone(),
                 source: e,
@@ -68,7 +65,7 @@ impl Config {
                 path: config_path,
                 source: e,
             })?;
-        let config: Config = serde_yaml::from_str(&config_str)?;
+        let config: Config = serde_yml::from_str(&config_str)?;
 
         Ok(config)
     }
@@ -81,7 +78,23 @@ impl Config {
                 + &self.project_root.replace("%USERPROFILE%", "")
         } else {
             // On Unix-like systems, expand ~
-            shellexpand::tilde(&self.project_root).to_string()
+            if self.project_root.starts_with("~/") {
+                let home = dirs::home_dir().ok_or_else(|| {
+                    RkitError::ConfigError("Could not find home directory".to_string())
+                })?;
+                home.join(&self.project_root[2..])
+                    .to_string_lossy()
+                    .to_string()
+            } else if self.project_root == "~" {
+                dirs::home_dir()
+                    .ok_or_else(|| {
+                        RkitError::ConfigError("Could not find home directory".to_string())
+                    })?
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                self.project_root.clone()
+            }
         };
         Ok(PathBuf::from(expanded))
     }
